@@ -155,6 +155,74 @@ input[type="text"]:focus {
   font-size: 16px;
 }
 
+.turn-info {
+  font-weight: bold;
+  color: #667eea;
+  font-size: 18px;
+}
+
+.base-suit-info {
+  font-weight: bold;
+  color: #ff9800;
+  font-size: 16px;
+}
+
+.play-card-section {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: #e8f5e9;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.play-card-section button {
+  margin-top: 10px;
+  background: #4caf50;
+}
+
+.play-card-section button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.round-cards-section {
+  margin: 20px 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+}
+
+.round-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.round-card-item {
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
+  border: 2px solid #ddd;
+  text-align: center;
+}
+
+.round-card-item h4 {
+  margin-bottom: 10px;
+  color: #667eea;
+}
+
+.card.playable {
+  cursor: pointer;
+  border: 3px solid #4caf50;
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
+
+.card.not-playable {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .host-controls {
   text-align: center;
   padding: 20px;
@@ -180,6 +248,13 @@ input[type="text"]:focus {
 .round-controls h4 {
   margin-bottom: 10px;
   color: #667eea;
+}
+
+.round-controls-note {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  margin: 0;
 }
 
 .player-cards-section {

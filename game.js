@@ -24,7 +24,14 @@ let gameState = {
   currentDistributor: null,
   currentRound: 0,
   gameStarted: false,
-  players: [] // Array of player IDs in order
+  players: [], // Array of player IDs in order
+  // Round state
+  roundState: {
+    currentTurn: null, // Player whose turn it is
+    cardsPlayed: {}, // {playerId: card} - cards played this round
+    baseSuit: null, // Suit of first card played (trump suit)
+    roundComplete: false
+  }
 };
 
 // Suit symbols
@@ -37,6 +44,13 @@ const SUITS = {
 
 // Card ranks (excluding 2)
 const RANKS = ['A', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+// Card ranking for comparison (2 is lowest, but not in deck, so 3 is lowest)
+// Ranking: 3 < 4 < 5 < 6 < 7 < 8 < 9 < 10 < J < Q < K < A
+const CARD_RANK = {
+  '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, '10': 8,
+  'J': 9, 'Q': 10, 'K': 11, 'A': 12
+};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -278,9 +292,9 @@ function startGame() {
     return;
   }
   
+  // Randomly pick initial distributor if not set
   if (!gameState.currentDistributor) {
-    log('Please set initial distributor first');
-    return;
+    setRandomDistributor();
   }
   
   log('Starting game...');
@@ -294,6 +308,15 @@ function startGame() {
   gameState.team2Points = 0;
   gameState.team1Rounds = 0;
   gameState.team2Rounds = 0;
+  
+  // Initialize first round - first card shown by next player of distributor
+  const firstPlayer = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
+  gameState.roundState = {
+    currentTurn: firstPlayer,
+    cardsPlayed: {},
+    baseSuit: null,
+    roundComplete: false
+  };
   
   updateGameDisplay();
   
@@ -309,6 +332,7 @@ function startGame() {
   
   log(`Game started! Distributor: Player ${gameState.currentDistributor}`);
   log(`Round ${gameState.currentRound} of ${ROUNDS_PER_GAME}`);
+  log(`Player ${firstPlayer} starts the round (next player after distributor)`);
   
   if (isTestMode) {
     log('Test Mode: All players\' cards are displayed below. Switch between players to test.');
@@ -324,6 +348,20 @@ function setDistributor() {
   const distributor = parseInt(document.getElementById('distributorSelect').value);
   gameState.currentDistributor = distributor;
   log(`Initial distributor set to Player ${distributor}`);
+  updateGameDisplay();
+  
+  if (!isTestMode) {
+    broadcastToAll({
+      type: 'gameState',
+      state: gameState
+    });
+  }
+}
+
+function setRandomDistributor() {
+  // Randomly pick initial distributor (1-6)
+  gameState.currentDistributor = Math.floor(Math.random() * TOTAL_PLAYERS) + 1;
+  log(`Random distributor selected: Player ${gameState.currentDistributor}`);
   updateGameDisplay();
   
   if (!isTestMode) {
@@ -410,13 +448,20 @@ function handleHostMessage(data, conn) {
     switch (message.type) {
       case 'playerAction':
         // Handle player actions (card plays, etc.)
-        log(`Received action from player: ${JSON.stringify(message.action)}`);
-        // Process action and update game state
-        // Broadcast updated state
-        broadcastToAll({
-          type: 'gameState',
-          state: gameState
-        });
+        if (message.action.type === 'playCard') {
+          const playerId = message.playerId;
+          const card = message.action.card;
+          const cardIndex = message.action.cardIndex;
+          
+          // Find the card in player's hand
+          const playerHand = gameState.hands[playerId];
+          if (playerHand) {
+            const actualIndex = playerHand.findIndex(c => c.id === card.id);
+            if (actualIndex !== -1) {
+              playCard(playerId, card, actualIndex);
+            }
+          }
+        }
         break;
       default:
         log(`Unknown message type: ${message.type}`);
@@ -483,6 +528,34 @@ function updateGameDisplay() {
   }
   document.getElementById('currentRound').textContent = gameState.currentRound;
   
+  // Update round state
+  if (gameState.gameStarted && gameState.roundState) {
+    const roundState = gameState.roundState;
+    
+    if (roundState.currentTurn) {
+      document.getElementById('currentTurnInfo').classList.remove('hidden');
+      document.getElementById('currentTurn').textContent = `Player ${roundState.currentTurn}`;
+    }
+    
+    if (roundState.baseSuit) {
+      document.getElementById('baseSuitInfo').classList.remove('hidden');
+      document.getElementById('baseSuit').textContent = `${roundState.baseSuit} ${SUITS[roundState.baseSuit]}`;
+    } else {
+      document.getElementById('baseSuitInfo').classList.add('hidden');
+    }
+    
+    // Show cards played this round
+    displayRoundCards();
+    
+    // Show play card section if it's player's turn
+    const viewingPlayer = isTestMode ? currentTestPlayer : playerPosition;
+    if (roundState.currentTurn === viewingPlayer && !roundState.roundComplete) {
+      document.getElementById('playCardSection').classList.remove('hidden');
+    } else {
+      document.getElementById('playCardSection').classList.add('hidden');
+    }
+  }
+  
   // Update player cards
   if (isTestMode) {
     // In test mode, show current test player's cards
@@ -521,6 +594,227 @@ function displayPlayerCards(cards, playerId = null) {
   if (isTestMode) {
     displayAllPlayersCards();
   }
+}
+
+// ==================== Card Playing Logic ====================
+
+let selectedCardIndex = null;
+
+function playSelectedCard() {
+  const viewingPlayer = isTestMode ? currentTestPlayer : playerPosition;
+  
+  if (!gameState.roundState || gameState.roundState.currentTurn !== viewingPlayer) {
+    log('Not your turn!');
+    return;
+  }
+  
+  if (gameState.roundState.roundComplete) {
+    log('Round is already complete!');
+    return;
+  }
+  
+  const selectedCard = document.querySelector('.card.selected');
+  if (!selectedCard) {
+    log('Please select a card first!');
+    return;
+  }
+  
+  const cardIndex = parseInt(selectedCard.dataset.cardIndex);
+  const playerHand = gameState.hands[viewingPlayer];
+  
+  if (!playerHand || !playerHand[cardIndex]) {
+    log('Invalid card selection!');
+    return;
+  }
+  
+  const card = playerHand[cardIndex];
+  
+  // Check if card can be played
+  if (!canPlayCard(card, viewingPlayer)) {
+    log(`Cannot play this card. Must follow suit if available.`);
+    return;
+  }
+  
+  // Play the card
+  playCard(viewingPlayer, card, cardIndex);
+}
+
+function playCard(playerId, card, cardIndex) {
+  if (!isHost && !isTestMode) {
+    // Client sends action to host
+    sendPlayerAction({
+      type: 'playCard',
+      card: card,
+      cardIndex: cardIndex
+    });
+    return;
+  }
+  
+  // Host processes the card play
+  const roundState = gameState.roundState;
+  
+  // Set base suit if this is the first card
+  if (!roundState.baseSuit) {
+    roundState.baseSuit = card.suit;
+    log(`Player ${playerId} played ${card.rank} ${SUITS[card.suit]} - Base suit is now ${card.suit}`);
+  } else {
+    log(`Player ${playerId} played ${card.rank} ${SUITS[card.suit]}`);
+  }
+  
+  // Add card to played cards
+  roundState.cardsPlayed[playerId] = card;
+  
+  // Remove card from player's hand
+  gameState.hands[playerId].splice(cardIndex, 1);
+  
+  // Move to next player
+  const nextPlayer = (playerId % TOTAL_PLAYERS) + 1;
+  
+  // Check if round is complete (all 6 players have played)
+  if (Object.keys(roundState.cardsPlayed).length === TOTAL_PLAYERS) {
+    roundState.roundComplete = true;
+    roundState.currentTurn = null;
+    log('Round complete! Calculating winner...');
+    
+    // Calculate winner and complete round
+    setTimeout(() => {
+      completeRound();
+    }, 1000); // Small delay to show all cards
+  } else {
+    roundState.currentTurn = nextPlayer;
+    log(`Next turn: Player ${nextPlayer}`);
+  }
+  
+  updateGameDisplay();
+  
+  if (!isTestMode) {
+    broadcastToAll({
+      type: 'gameState',
+      state: gameState
+    });
+  }
+}
+
+function calculateRoundWinner() {
+  const roundState = gameState.roundState;
+  const baseSuit = roundState.baseSuit;
+  const cardsPlayed = roundState.cardsPlayed;
+  
+  // Find all cards of base suit
+  const baseSuitCards = [];
+  for (const [playerId, card] of Object.entries(cardsPlayed)) {
+    if (card.suit === baseSuit) {
+      baseSuitCards.push({
+        playerId: parseInt(playerId),
+        card: card
+      });
+    }
+  }
+  
+  // If no base suit cards (shouldn't happen), return first player
+  if (baseSuitCards.length === 0) {
+    return parseInt(Object.keys(cardsPlayed)[0]);
+  }
+  
+  // Find highest rank card of base suit
+  let winner = baseSuitCards[0];
+  for (const cardPlay of baseSuitCards) {
+    const currentRank = CARD_RANK[winner.card.rank] || 0;
+    const playRank = CARD_RANK[cardPlay.card.rank] || 0;
+    
+    if (playRank > currentRank) {
+      winner = cardPlay;
+    }
+  }
+  
+  return winner.playerId;
+}
+
+function completeRound() {
+  const winner = calculateRoundWinner();
+  const winnerTeam = TEAM1_PLAYERS.includes(winner) ? 1 : 2;
+  
+  log(`Round ${gameState.currentRound} winner: Player ${winner} (Team ${winnerTeam})`);
+  
+  // Clear round state
+  gameState.roundState.cardsPlayed = {};
+  gameState.roundState.baseSuit = null;
+  gameState.roundState.roundComplete = false;
+  
+  // Update points
+  updatePoints(winnerTeam);
+  
+  // Check if game is complete
+  if (gameState.currentRound >= ROUNDS_PER_GAME) {
+    log('Game completed! Starting new game...');
+    // Start new game with new distributor
+    rotateDistributor();
+    startGame();
+    return;
+  }
+  
+  // Start next round - winner starts next round
+  gameState.currentRound++;
+  const firstPlayer = winner; // Winner starts next round
+  gameState.roundState.currentTurn = firstPlayer;
+  
+  log(`Round ${gameState.currentRound} starting. Player ${firstPlayer} begins.`);
+  
+  updateGameDisplay();
+  
+  if (!isTestMode) {
+    broadcastToAll({
+      type: 'gameState',
+      state: gameState
+    });
+  }
+}
+
+function displayRoundCards() {
+  const container = document.getElementById('roundCards');
+  const roundState = gameState.roundState;
+  
+  if (!roundState || Object.keys(roundState.cardsPlayed).length === 0) {
+    document.getElementById('roundCardsSection').classList.add('hidden');
+    return;
+  }
+  
+  document.getElementById('roundCardsSection').classList.remove('hidden');
+  container.innerHTML = '';
+  
+  // Display cards in turn order
+  let currentPlayer = roundState.currentTurn || Object.keys(roundState.cardsPlayed)[0];
+  const playedOrder = [];
+  
+  // Find first player who played (should be the one after distributor for first round)
+  if (gameState.currentRound === 1 && gameState.currentDistributor) {
+    currentPlayer = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
+  }
+  
+  // Build order of players who played
+  for (let i = 0; i < TOTAL_PLAYERS; i++) {
+    const playerId = ((currentPlayer - 1 + i) % TOTAL_PLAYERS) + 1;
+    if (roundState.cardsPlayed[playerId]) {
+      playedOrder.push(playerId);
+    }
+  }
+  
+  playedOrder.forEach(playerId => {
+    const card = roundState.cardsPlayed[playerId];
+    const isTeam1 = TEAM1_PLAYERS.includes(playerId);
+    
+    const cardItem = document.createElement('div');
+    cardItem.className = 'round-card-item';
+    cardItem.innerHTML = `
+      <h4>Player ${playerId} ${isTeam1 ? '(Team 1)' : '(Team 2)'}</h4>
+      <div class="card ${card.suit === 'hearts' || card.suit === 'diamonds' ? 'red' : 'black'}" style="margin: 0 auto;">
+        <div class="card-rank">${card.rank}</div>
+        <div class="card-suit">${SUITS[card.suit]}</div>
+        <div class="card-rank-bottom">${card.rank}</div>
+      </div>
+    `;
+    container.appendChild(cardItem);
+  });
 }
 
 function log(message) {
@@ -648,6 +942,9 @@ function createCardElement(card, index, playerId = null) {
   cardElement.className = 'card';
   cardElement.classList.add(card.suit === 'hearts' || card.suit === 'diamonds' ? 'red' : 'black');
   cardElement.dataset.cardIndex = index;
+  cardElement.dataset.cardId = card.id;
+  cardElement.dataset.cardSuit = card.suit;
+  cardElement.dataset.cardRank = card.rank;
   if (playerId) {
     cardElement.dataset.playerId = playerId;
   }
@@ -658,19 +955,62 @@ function createCardElement(card, index, playerId = null) {
     <div class="card-rank-bottom">${card.rank}</div>
   `;
   
+  // Check if card is playable
+  const viewingPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
+  const isPlayable = canPlayCard(card, viewingPlayer);
+  
+  if (isPlayable && gameState.roundState && gameState.roundState.currentTurn === viewingPlayer && !gameState.roundState.roundComplete) {
+    cardElement.classList.add('playable');
+  } else if (gameState.roundState && gameState.roundState.currentTurn === viewingPlayer && !gameState.roundState.roundComplete) {
+    cardElement.classList.add('not-playable');
+  }
+  
   cardElement.addEventListener('click', () => {
     const targetPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
-    if (targetPlayer && gameState.hands[targetPlayer]) {
+    
+    // Only allow selection if it's player's turn and card is playable
+    if (gameState.roundState && gameState.roundState.currentTurn === targetPlayer && !gameState.roundState.roundComplete) {
+      if (isPlayable) {
+        // Deselect all other cards
+        document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
+        cardElement.classList.add('selected');
+        document.getElementById('playCardBtn').disabled = false;
+        log(`Selected card: ${card.rank} ${SUITS[card.suit]}`);
+      } else {
+        log(`Cannot play this card. Must follow suit if available.`);
+      }
+    } else if (!gameState.gameStarted || gameState.roundState.roundComplete) {
+      // Just toggle selection for viewing
       cardElement.classList.toggle('selected');
-      log(`Player ${targetPlayer} selected card: ${card.rank} ${SUITS[card.suit]}`);
-    } else if (!isTestMode && playerPosition) {
-      // Normal mode - allow card selection
-      cardElement.classList.toggle('selected');
-      log(`Selected card: ${card.rank} ${SUITS[card.suit]}`);
     }
   });
   
   return cardElement;
+}
+
+function canPlayCard(card, playerId) {
+  if (!gameState.roundState || !gameState.hands[playerId]) {
+    return false;
+  }
+  
+  const roundState = gameState.roundState;
+  const playerHand = gameState.hands[playerId];
+  
+  // If no base suit set (first card), any card can be played
+  if (!roundState.baseSuit) {
+    return true;
+  }
+  
+  // Check if player has cards of base suit
+  const hasBaseSuit = playerHand.some(c => c.suit === roundState.baseSuit);
+  
+  // If player has base suit cards, must play one of them
+  if (hasBaseSuit) {
+    return card.suit === roundState.baseSuit;
+  }
+  
+  // If player doesn't have base suit, can play any card
+  return true;
 }
 
 // Expose functions globally
@@ -681,3 +1021,4 @@ window.joinHost = joinHost;
 window.endRoundTest = endRoundTest;
 window.startTestMode = startTestMode;
 window.switchTestPlayer = switchTestPlayer;
+window.playSelectedCard = playSelectedCard;

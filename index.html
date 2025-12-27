@@ -52,6 +52,8 @@
           <p>Current Distributor: <span id="currentDistributor">---</span></p>
           <p>Round: <span id="currentRound">0</span> / 8</p>
           <p>Your Position: <span id="playerPosition">---</span></p>
+          <p id="currentTurnInfo" class="turn-info hidden">Current Turn: <span id="currentTurn">---</span></p>
+          <p id="baseSuitInfo" class="base-suit-info hidden">Base Suit: <span id="baseSuit">---</span></p>
         </div>
       </div>
 
@@ -68,9 +70,7 @@
           <option value="6">Player 6</option>
         </select>
         <div id="roundControls" class="round-controls hidden">
-          <h4>Round Controls (Testing)</h4>
-          <button onclick="endRoundTest(1)">Team 1 Wins Round</button>
-          <button onclick="endRoundTest(2)">Team 2 Wins Round</button>
+          <p class="round-controls-note">Rounds complete automatically when all players play their cards.</p>
         </div>
       </div>
 
@@ -91,9 +91,19 @@
       <!-- Player Cards -->
       <div class="player-cards-section">
         <h3 id="playerCardsTitle">Your Cards</h3>
+        <div id="playCardSection" class="play-card-section hidden">
+          <p id="playCardMessage">Select a card to play</p>
+          <button id="playCardBtn" onclick="playSelectedCard()" disabled>Play Selected Card</button>
+        </div>
         <div id="playerCards" class="cards-container">
           <p class="waiting-message">Waiting for game to start...</p>
         </div>
+      </div>
+
+      <!-- Cards Played This Round -->
+      <div id="roundCardsSection" class="round-cards-section hidden">
+        <h3>Cards Played This Round</h3>
+        <div id="roundCards" class="round-cards-container"></div>
       </div>
 
       <!-- All Players Cards (Test Mode) -->
