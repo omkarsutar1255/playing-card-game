@@ -61,6 +61,10 @@ function createHost() {
     
     // Show host controls
     document.getElementById('hostControls').classList.remove('hidden');
+    
+    // Initialize host player position
+    playerPosition = 1;
+    gameState.players = [1]; // Host is always player 1
   });
 
   peer.on('connection', conn => {
@@ -108,6 +112,11 @@ function createHost() {
         log('All 6 players connected! Ready to start game.');
         document.getElementById('hostStatus').textContent = 'All players connected! Ready to start.';
         document.getElementById('hostStatus').style.color = 'green';
+        
+        // Show game section for host
+        document.getElementById('gameSection').classList.remove('hidden');
+        document.getElementById('playerPosition').textContent = 'Player 1 (Host)';
+        updateGameDisplay();
       }
     });
 
@@ -476,7 +485,7 @@ function displayPlayerCards(cards) {
   container.innerHTML = '';
   
   if (!cards || cards.length === 0) {
-    container.innerHTML = '<p>No cards yet. Waiting for game to start...</p>';
+    container.innerHTML = '<p class="waiting-message">No cards yet. Waiting for game to start...</p>';
     return;
   }
   

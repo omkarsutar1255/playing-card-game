@@ -186,6 +186,14 @@ input[type="text"]:focus {
   border-radius: 10px;
 }
 
+.waiting-message {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  width: 100%;
+  padding: 20px;
+}
+
 .card {
   width: 80px;
   height: 112px;
