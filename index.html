@@ -54,6 +54,11 @@
           <p>Your Position: <span id="playerPosition">---</span></p>
           <p id="currentTurnInfo" class="turn-info hidden">Current Turn: <span id="currentTurn">---</span></p>
           <p id="baseSuitInfo" class="base-suit-info hidden">Base Suit: <span id="baseSuit">---</span></p>
+          <p id="superSuitInfo" class="super-suit-info hidden">Super Suit: <span id="superSuit">---</span></p>
+          <div id="hiddenCardDisplay" class="hidden-card-display hidden">
+            <h4>Hidden Card (Opened)</h4>
+            <div id="hiddenCardContainer" class="hidden-card-container"></div>
+          </div>
         </div>
       </div>
 
@@ -84,6 +89,11 @@
         <h3 id="playerCardsTitle">Your Cards</h3>
         <div id="playCardSection" class="play-card-section hidden">
           <p id="playCardMessage">Select a card and click Next to move to next player</p>
+          <div id="openHiddenCardSection" class="open-hidden-card-section hidden">
+            <p>You don't have any cards of the base suit. Do you want to open the hidden card?</p>
+            <button id="openHiddenCardBtn" onclick="openHiddenCard()">Open Hidden Card</button>
+            <button id="skipHiddenCardBtn" onclick="skipHiddenCard()">Skip (Don't Open)</button>
+          </div>
           <button id="nextBtn" onclick="nextPlayer()" disabled>Next</button>
         </div>
         <div id="playerCards" class="cards-container">

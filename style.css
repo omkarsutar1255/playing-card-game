@@ -167,6 +167,75 @@ input[type="text"]:focus {
   font-size: 16px;
 }
 
+.super-suit-info {
+  font-weight: bold;
+  color: #9c27b0;
+  font-size: 18px;
+  background: #f3e5f5;
+  padding: 8px;
+  border-radius: 8px;
+  border: 2px solid #9c27b0;
+}
+
+.hidden-card-display {
+  margin-top: 15px;
+  padding: 15px;
+  background: #fff9c4;
+  border-radius: 10px;
+  border: 2px solid #fbc02d;
+}
+
+.hidden-card-display h4 {
+  margin-bottom: 10px;
+  color: #f57f17;
+}
+
+.hidden-card-container {
+  display: flex;
+  justify-content: center;
+}
+
+.open-hidden-card-section {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: #fff3e0;
+  border-radius: 8px;
+  border: 2px solid #ff9800;
+}
+
+.open-hidden-card-section p {
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: #e65100;
+}
+
+.open-hidden-card-section button {
+  margin: 5px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+#openHiddenCardBtn {
+  background: #ff9800;
+  color: white;
+}
+
+#openHiddenCardBtn:hover {
+  background: #f57c00;
+}
+
+#skipHiddenCardBtn {
+  background: #757575;
+  color: white;
+}
+
+#skipHiddenCardBtn:hover {
+  background: #616161;
+}
+
 .play-card-section {
   margin-bottom: 15px;
   padding: 15px;

@@ -25,6 +25,9 @@ let gameState = {
   currentRound: 0,
   gameStarted: false,
   players: [], // Array of player IDs in order
+  hiddenCard: null, // Card hidden from first player
+  superSuit: null, // Super suit revealed when hidden card is opened
+  hiddenCardOpened: false, // Whether hidden card has been opened
   // Round state
   roundState: {
     currentTurn: null, // Player whose turn it is
@@ -317,8 +320,20 @@ function startGame() {
   gameState.team1Rounds = 0;
   gameState.team2Rounds = 0;
   
-  // Initialize first round - first card shown by next player of distributor
+  // Reset super suit for new game
+  gameState.superSuit = null;
+  gameState.hiddenCardOpened = false;
+  
+  // Hide one card from first player (next player after distributor)
   const firstPlayer = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
+  if (gameState.hands[firstPlayer] && gameState.hands[firstPlayer].length > 0) {
+    // Randomly select one card to hide
+    const hiddenIndex = Math.floor(Math.random() * gameState.hands[firstPlayer].length);
+    gameState.hiddenCard = gameState.hands[firstPlayer][hiddenIndex];
+    // Remove card from hand (but keep it in hiddenCard)
+    gameState.hands[firstPlayer].splice(hiddenIndex, 1);
+    log(`One card hidden from Player ${firstPlayer}. Hidden card will be revealed when opened.`);
+  }
   gameState.roundState = {
     currentTurn: firstPlayer,
     cardsPlayed: {},
@@ -498,6 +513,8 @@ function handleHostMessage(data, conn) {
               saveSelectedCard(playerId, card, actualIndex);
             }
           }
+        } else if (message.action.type === 'openHiddenCard') {
+          openHiddenCard();
         }
         break;
       default:
@@ -581,6 +598,22 @@ function updateGameDisplay() {
       document.getElementById('baseSuitInfo').classList.add('hidden');
     }
     
+    // Show super suit if revealed
+    if (gameState.superSuit) {
+      document.getElementById('superSuitInfo').classList.remove('hidden');
+      document.getElementById('superSuit').textContent = `${gameState.superSuit} ${SUITS[gameState.superSuit]}`;
+    } else {
+      document.getElementById('superSuitInfo').classList.add('hidden');
+    }
+    
+    // Show hidden card if opened
+    if (gameState.hiddenCardOpened && gameState.hiddenCard) {
+      document.getElementById('hiddenCardDisplay').classList.remove('hidden');
+      displayHiddenCard();
+    } else {
+      document.getElementById('hiddenCardDisplay').classList.add('hidden');
+    }
+    
     // Show cards played this round
     displayRoundCards();
     
@@ -588,8 +621,32 @@ function updateGameDisplay() {
     const viewingPlayer = isTestMode ? currentTestPlayer : playerPosition;
     if (roundState.currentTurn === viewingPlayer && !roundState.roundComplete) {
       document.getElementById('playCardSection').classList.remove('hidden');
+      
+      // Check if player can open hidden card
+      if (canOpenHiddenCard(viewingPlayer)) {
+        // Check if player has selected a card that requires opening hidden card
+        const selectedCard = document.querySelector('.card.selected');
+        if (selectedCard) {
+          const cardIndex = parseInt(selectedCard.dataset.cardIndex);
+          const playerHand = gameState.hands[viewingPlayer];
+          if (playerHand && playerHand[cardIndex]) {
+            const card = playerHand[cardIndex];
+            if (!canPlayCard(card, viewingPlayer)) {
+              document.getElementById('openHiddenCardSection').classList.remove('hidden');
+            } else {
+              document.getElementById('openHiddenCardSection').classList.add('hidden');
+            }
+          }
+        } else {
+          // No card selected yet - show option if they don't have base suit
+          document.getElementById('openHiddenCardSection').classList.remove('hidden');
+        }
+      } else {
+        document.getElementById('openHiddenCardSection').classList.add('hidden');
+      }
     } else {
       document.getElementById('playCardSection').classList.add('hidden');
+      document.getElementById('openHiddenCardSection').classList.add('hidden');
     }
   }
   
@@ -667,13 +724,104 @@ function nextPlayer() {
   const card = playerHand[cardIndex];
   
   // Check if card can be played
-  if (!canPlayCard(card, viewingPlayer)) {
+  const canPlay = canPlayCard(card, viewingPlayer);
+  
+  if (!canPlay) {
     log(`Cannot play this card. Must follow suit if available.`);
+    return;
+  }
+  
+  // If player doesn't have base suit and can open hidden card, show option before playing
+  if (canOpenHiddenCard(viewingPlayer)) {
+    // Store the selected card info temporarily
+    window.pendingCardSelection = { card, cardIndex, playerId: viewingPlayer };
+    log('You don\'t have base suit cards. You can open the hidden card or skip and play your selected card.');
+    document.getElementById('openHiddenCardSection').classList.remove('hidden');
+    document.getElementById('nextBtn').disabled = true;
     return;
   }
   
   // Save the selected card and move to next player
   saveSelectedCard(viewingPlayer, card, cardIndex);
+}
+
+function openHiddenCard() {
+  const viewingPlayer = isTestMode ? currentTestPlayer : playerPosition;
+  
+  if (!canOpenHiddenCard(viewingPlayer)) {
+    log('Cannot open hidden card at this time.');
+    return;
+  }
+  
+  if (!isHost && !isTestMode) {
+    sendPlayerAction({
+      type: 'openHiddenCard'
+    });
+    return;
+  }
+  
+  // Reveal hidden card and set super suit
+  gameState.superSuit = gameState.hiddenCard.suit;
+  gameState.hiddenCardOpened = true;
+  
+  // Give hidden card to first player (next player after distributor)
+  const firstPlayer = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
+  gameState.hands[firstPlayer].push(gameState.hiddenCard);
+  
+  log(`Player ${viewingPlayer} opened the hidden card!`);
+  log(`Super Suit is now: ${gameState.superSuit} ${SUITS[gameState.superSuit]}`);
+  log(`Hidden card (${gameState.hiddenCard.rank} ${SUITS[gameState.hiddenCard.suit]}) given to Player ${firstPlayer}`);
+  
+  // Hide the open hidden card section
+  document.getElementById('openHiddenCardSection').classList.add('hidden');
+  
+  // If there's a pending card selection, check if player wants to play super suit card
+  if (window.pendingCardSelection && window.pendingCardSelection.playerId === viewingPlayer) {
+    const { card, cardIndex } = window.pendingCardSelection;
+    delete window.pendingCardSelection;
+    
+    // Check if player has super suit cards
+    const playerHand = gameState.hands[viewingPlayer];
+    const hasSuperSuit = playerHand.some(c => c.suit === gameState.superSuit);
+    
+    if (hasSuperSuit && card.suit !== gameState.superSuit) {
+      log('You have super suit cards! You can play a super suit card or your selected card.');
+      // Allow player to select super suit card or play selected card
+      // For now, play the selected card (player can select different card if they want)
+    }
+    
+    // Play the selected card
+    saveSelectedCard(viewingPlayer, card, cardIndex);
+  } else {
+    // Update display
+    updateGameDisplay();
+  }
+  
+  if (!isTestMode) {
+    broadcastToAll({
+      type: 'gameState',
+      state: gameState
+    });
+  }
+}
+
+function skipHiddenCard() {
+  const viewingPlayer = isTestMode ? currentTestPlayer : playerPosition;
+  
+  log(`Player ${viewingPlayer} chose not to open the hidden card.`);
+  
+  // Hide the open hidden card section
+  document.getElementById('openHiddenCardSection').classList.add('hidden');
+  
+  // If there's a pending card selection, play it now
+  if (window.pendingCardSelection && window.pendingCardSelection.playerId === viewingPlayer) {
+    const { card, cardIndex } = window.pendingCardSelection;
+    delete window.pendingCardSelection;
+    saveSelectedCard(viewingPlayer, card, cardIndex);
+  } else {
+    // Enable card selection
+    updateGameDisplay();
+  }
 }
 
 function saveSelectedCard(playerId, card, cardIndex) {
@@ -744,9 +892,39 @@ function saveSelectedCard(playerId, card, cardIndex) {
 function calculateRoundWinner() {
   const roundState = gameState.roundState;
   const baseSuit = roundState.baseSuit;
+  const superSuit = gameState.superSuit;
   const cardsPlayed = roundState.cardsPlayed;
   
-  // Find all cards of base suit
+  // First, check if any super suit cards were played
+  const superSuitCards = [];
+  if (superSuit) {
+    for (const [playerId, card] of Object.entries(cardsPlayed)) {
+      if (card.suit === superSuit) {
+        superSuitCards.push({
+          playerId: parseInt(playerId),
+          card: card
+        });
+      }
+    }
+  }
+  
+  // If super suit cards were played, they win (regardless of base suit)
+  if (superSuitCards.length > 0) {
+    // Find highest rank card of super suit
+    let winner = superSuitCards[0];
+    for (const cardPlay of superSuitCards) {
+      const currentRank = CARD_RANK[winner.card.rank] || 0;
+      const playRank = CARD_RANK[cardPlay.card.rank] || 0;
+      
+      if (playRank > currentRank) {
+        winner = cardPlay;
+      }
+    }
+    log(`Super suit card wins! Player ${winner.playerId} wins with ${winner.card.rank} ${SUITS[winner.card.suit]}`);
+    return winner.playerId;
+  }
+  
+  // No super suit cards - check base suit cards
   const baseSuitCards = [];
   for (const [playerId, card] of Object.entries(cardsPlayed)) {
     if (card.suit === baseSuit) {
@@ -831,6 +1009,27 @@ function completeRound() {
       state: gameState
     });
   }
+}
+
+function displayHiddenCard() {
+  const container = document.getElementById('hiddenCardContainer');
+  container.innerHTML = '';
+  
+  if (!gameState.hiddenCard) return;
+  
+  const card = gameState.hiddenCard;
+  const cardElement = document.createElement('div');
+  cardElement.className = 'card';
+  cardElement.classList.add(card.suit === 'hearts' || card.suit === 'diamonds' ? 'red' : 'black');
+  cardElement.style.cursor = 'default';
+  
+  cardElement.innerHTML = `
+    <div class="card-rank">${card.rank}</div>
+    <div class="card-suit">${SUITS[card.suit]}</div>
+    <div class="card-rank-bottom">${card.rank}</div>
+  `;
+  
+  container.appendChild(cardElement);
 }
 
 function displayRoundCards() {
@@ -1038,10 +1237,15 @@ function createCardElement(card, index, playerId = null) {
   const viewingPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
   const isPlayable = canPlayCard(card, viewingPlayer);
   
-  if (isPlayable && gameState.roundState && gameState.roundState.currentTurn === viewingPlayer && !gameState.roundState.roundComplete) {
-    cardElement.classList.add('playable');
-  } else if (gameState.roundState && gameState.roundState.currentTurn === viewingPlayer && !gameState.roundState.roundComplete) {
-    cardElement.classList.add('not-playable');
+  // Special handling: if player can open hidden card, all cards become playable after decision
+  const canOpen = canOpenHiddenCard(viewingPlayer);
+  
+  if (gameState.roundState && gameState.roundState.currentTurn === viewingPlayer && !gameState.roundState.roundComplete) {
+    if (isPlayable || canOpen) {
+      cardElement.classList.add('playable');
+    } else {
+      cardElement.classList.add('not-playable');
+    }
   }
   
   cardElement.addEventListener('click', () => {
@@ -1093,8 +1297,24 @@ function canPlayCard(card, playerId) {
     return card.suit === roundState.baseSuit;
   }
   
-  // If player doesn't have base suit, can play any card
+  // Player doesn't have base suit - can play any card
+  // (They may choose to open hidden card, but that's a separate decision)
   return true;
+}
+
+function canOpenHiddenCard(playerId) {
+  if (!gameState.roundState || !gameState.hands[playerId]) {
+    return false;
+  }
+  
+  const roundState = gameState.roundState;
+  const playerHand = gameState.hands[playerId];
+  
+  // Can open if: base suit is set, player doesn't have base suit, and hidden card not yet opened
+  return roundState.baseSuit && 
+         !playerHand.some(c => c.suit === roundState.baseSuit) &&
+         !gameState.hiddenCardOpened &&
+         gameState.hiddenCard !== null;
 }
 
 // Expose functions globally
@@ -1105,3 +1325,5 @@ window.endRoundTest = endRoundTest;
 window.startTestMode = startTestMode;
 window.switchTestPlayer = switchTestPlayer;
 window.nextPlayer = nextPlayer;
+window.openHiddenCard = openHiddenCard;
+window.skipHiddenCard = skipHiddenCard;
