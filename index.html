@@ -60,17 +60,8 @@
       <!-- Host Controls -->
       <div id="hostControls" class="host-controls hidden">
         <button onclick="startGame()">Start Game</button>
-        <button onclick="setDistributor()">Set Initial Distributor</button>
-        <select id="distributorSelect">
-          <option value="1">Player 1</option>
-          <option value="2">Player 2</option>
-          <option value="3">Player 3</option>
-          <option value="4">Player 4</option>
-          <option value="5">Player 5</option>
-          <option value="6">Player 6</option>
-        </select>
         <div id="roundControls" class="round-controls hidden">
-          <p class="round-controls-note">Rounds complete automatically when all players play their cards.</p>
+          <p class="round-controls-note">Rounds complete automatically when all players select their cards.</p>
         </div>
       </div>
 
@@ -92,8 +83,8 @@
       <div class="player-cards-section">
         <h3 id="playerCardsTitle">Your Cards</h3>
         <div id="playCardSection" class="play-card-section hidden">
-          <p id="playCardMessage">Select a card to play</p>
-          <button id="playCardBtn" onclick="playSelectedCard()" disabled>Play Selected Card</button>
+          <p id="playCardMessage">Select a card and click Next to move to next player</p>
+          <button id="nextBtn" onclick="nextPlayer()" disabled>Next</button>
         </div>
         <div id="playerCards" class="cards-container">
           <p class="waiting-message">Waiting for game to start...</p>

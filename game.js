@@ -339,24 +339,7 @@ function startGame() {
   }
 }
 
-function setDistributor() {
-  if (!isHost && !isTestMode) {
-    log('Only host can set distributor');
-    return;
-  }
-  
-  const distributor = parseInt(document.getElementById('distributorSelect').value);
-  gameState.currentDistributor = distributor;
-  log(`Initial distributor set to Player ${distributor}`);
-  updateGameDisplay();
-  
-  if (!isTestMode) {
-    broadcastToAll({
-      type: 'gameState',
-      state: gameState
-    });
-  }
-}
+// setDistributor function removed - distributor is now randomly selected automatically
 
 function setRandomDistributor() {
   // Randomly pick initial distributor (1-6)
@@ -447,8 +430,8 @@ function handleHostMessage(data, conn) {
     
     switch (message.type) {
       case 'playerAction':
-        // Handle player actions (card plays, etc.)
-        if (message.action.type === 'playCard') {
+        // Handle player actions (card selections, etc.)
+        if (message.action.type === 'selectCard') {
           const playerId = message.playerId;
           const card = message.action.card;
           const cardIndex = message.action.cardIndex;
@@ -458,7 +441,7 @@ function handleHostMessage(data, conn) {
           if (playerHand) {
             const actualIndex = playerHand.findIndex(c => c.id === card.id);
             if (actualIndex !== -1) {
-              playCard(playerId, card, actualIndex);
+              saveSelectedCard(playerId, card, actualIndex);
             }
           }
         }
@@ -600,7 +583,7 @@ function displayPlayerCards(cards, playerId = null) {
 
 let selectedCardIndex = null;
 
-function playSelectedCard() {
+function nextPlayer() {
   const viewingPlayer = isTestMode ? currentTestPlayer : playerPosition;
   
   if (!gameState.roundState || gameState.roundState.currentTurn !== viewingPlayer) {
@@ -635,54 +618,58 @@ function playSelectedCard() {
     return;
   }
   
-  // Play the card
-  playCard(viewingPlayer, card, cardIndex);
+  // Save the selected card and move to next player
+  saveSelectedCard(viewingPlayer, card, cardIndex);
 }
 
-function playCard(playerId, card, cardIndex) {
+function saveSelectedCard(playerId, card, cardIndex) {
   if (!isHost && !isTestMode) {
     // Client sends action to host
     sendPlayerAction({
-      type: 'playCard',
+      type: 'selectCard',
       card: card,
       cardIndex: cardIndex
     });
     return;
   }
   
-  // Host processes the card play
+  // Host processes the card selection
   const roundState = gameState.roundState;
   
   // Set base suit if this is the first card
   if (!roundState.baseSuit) {
     roundState.baseSuit = card.suit;
-    log(`Player ${playerId} played ${card.rank} ${SUITS[card.suit]} - Base suit is now ${card.suit}`);
+    log(`Player ${playerId} selected ${card.rank} ${SUITS[card.suit]} - Base suit is now ${card.suit}`);
   } else {
-    log(`Player ${playerId} played ${card.rank} ${SUITS[card.suit]}`);
+    log(`Player ${playerId} selected ${card.rank} ${SUITS[card.suit]}`);
   }
   
-  // Add card to played cards
+  // Add card to played cards (saved for round calculation)
   roundState.cardsPlayed[playerId] = card;
   
   // Remove card from player's hand
   gameState.hands[playerId].splice(cardIndex, 1);
   
+  // Clear selection
+  document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
+  document.getElementById('nextBtn').disabled = true;
+  
   // Move to next player
   const nextPlayer = (playerId % TOTAL_PLAYERS) + 1;
   
-  // Check if round is complete (all 6 players have played)
+  // Check if round is complete (all 6 players have selected)
   if (Object.keys(roundState.cardsPlayed).length === TOTAL_PLAYERS) {
     roundState.roundComplete = true;
     roundState.currentTurn = null;
-    log('Round complete! Calculating winner...');
+    log('All players have selected cards! Calculating winner...');
     
     // Calculate winner and complete round
     setTimeout(() => {
       completeRound();
-    }, 1000); // Small delay to show all cards
+    }, 500);
   } else {
     roundState.currentTurn = nextPlayer;
-    log(`Next turn: Player ${nextPlayer}`);
+    log(`Next player: Player ${nextPlayer}`);
   }
   
   updateGameDisplay();
@@ -867,7 +854,7 @@ function startTestMode() {
   
   log('Test Mode activated! All 6 players simulated.');
   log('You can switch between players using the buttons above.');
-  log('Set distributor and start game to begin testing.');
+  log('Click "Start Game" to begin. Distributor will be randomly selected.');
 }
 
 function switchTestPlayer(playerNum) {
@@ -883,10 +870,26 @@ function switchTestPlayer(playerNum) {
   // Update player buttons
   updateTestPlayerButtons();
   
+  // Clear any selected cards
+  document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
+  
+  // Update Next button state
+  const nextBtn = document.getElementById('nextBtn');
+  if (nextBtn && gameState.roundState) {
+    if (gameState.roundState.currentTurn === playerNum && !gameState.roundState.roundComplete) {
+      nextBtn.disabled = true; // Will be enabled when card is selected
+    } else {
+      nextBtn.disabled = true;
+    }
+  }
+  
   // Update displayed cards
   if (gameState.gameStarted && gameState.hands[playerNum]) {
     displayPlayerCards(gameState.hands[playerNum]);
   }
+  
+  // Update display to show current turn info
+  updateGameDisplay();
   
   log(`Switched to Player ${playerNum} view`);
 }
@@ -974,14 +977,19 @@ function createCardElement(card, index, playerId = null) {
         // Deselect all other cards
         document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
         cardElement.classList.add('selected');
-        document.getElementById('playCardBtn').disabled = false;
+        const nextBtn = document.getElementById('nextBtn');
+        if (nextBtn) {
+          nextBtn.disabled = false;
+        }
         log(`Selected card: ${card.rank} ${SUITS[card.suit]}`);
       } else {
-        log(`Cannot play this card. Must follow suit if available.`);
+        log(`Cannot select this card. Must follow suit if available.`);
       }
-    } else if (!gameState.gameStarted || gameState.roundState.roundComplete) {
-      // Just toggle selection for viewing
+    } else if (!gameState.gameStarted || (gameState.roundState && gameState.roundState.roundComplete)) {
+      // Just toggle selection for viewing (not during active round)
       cardElement.classList.toggle('selected');
+    } else if (gameState.roundState && gameState.roundState.currentTurn !== targetPlayer) {
+      log(`Not your turn! Current turn: Player ${gameState.roundState.currentTurn}`);
     }
   });
   
@@ -1015,10 +1023,9 @@ function canPlayCard(card, playerId) {
 
 // Expose functions globally
 window.startGame = startGame;
-window.setDistributor = setDistributor;
 window.createHost = createHost;
 window.joinHost = joinHost;
 window.endRoundTest = endRoundTest;
 window.startTestMode = startTestMode;
 window.switchTestPlayer = switchTestPlayer;
-window.playSelectedCard = playSelectedCard;
+window.nextPlayer = nextPlayer;

@@ -178,11 +178,18 @@ input[type="text"]:focus {
 .play-card-section button {
   margin-top: 10px;
   background: #4caf50;
+  padding: 12px 30px;
+  font-size: 18px;
+  font-weight: bold;
 }
 
 .play-card-section button:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+.play-card-section button:not(:disabled):hover {
+  background: #45a049;
 }
 
 .round-cards-section {
