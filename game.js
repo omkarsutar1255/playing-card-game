@@ -8,7 +8,9 @@ const ROUNDS_PER_GAME = 8;
 
 // Game State
 let isHost = false;
+let isTestMode = false;
 let playerPosition = null;
+let currentTestPlayer = 1; // For test mode player switching
 let peer = null;
 let hostConnection = null; // Client's connection to host
 let connections = []; // Array of connections for host
@@ -266,12 +268,12 @@ function distributeCards(deck, distributor) {
 }
 
 function startGame() {
-  if (!isHost) {
+  if (!isHost && !isTestMode) {
     log('Only host can start the game');
     return;
   }
   
-  if (connections.length + 1 < TOTAL_PLAYERS) {
+  if (!isTestMode && connections.length + 1 < TOTAL_PLAYERS) {
     log(`Need ${TOTAL_PLAYERS} players. Currently: ${connections.length + 1}`);
     return;
   }
@@ -294,20 +296,27 @@ function startGame() {
   gameState.team2Rounds = 0;
   
   updateGameDisplay();
-  broadcastToAll({
-    type: 'gameState',
-    state: gameState
-  });
+  
+  if (!isTestMode) {
+    broadcastToAll({
+      type: 'gameState',
+      state: gameState
+    });
+  }
   
   // Show round controls
   document.getElementById('roundControls').classList.remove('hidden');
   
   log(`Game started! Distributor: Player ${gameState.currentDistributor}`);
   log(`Round ${gameState.currentRound} of ${ROUNDS_PER_GAME}`);
+  
+  if (isTestMode) {
+    log('Test Mode: All players\' cards are displayed below. Switch between players to test.');
+  }
 }
 
 function setDistributor() {
-  if (!isHost) {
+  if (!isHost && !isTestMode) {
     log('Only host can set distributor');
     return;
   }
@@ -316,10 +325,13 @@ function setDistributor() {
   gameState.currentDistributor = distributor;
   log(`Initial distributor set to Player ${distributor}`);
   updateGameDisplay();
-  broadcastToAll({
-    type: 'gameState',
-    state: gameState
-  });
+  
+  if (!isTestMode) {
+    broadcastToAll({
+      type: 'gameState',
+      state: gameState
+    });
+  }
 }
 
 // ==================== Points System ====================
@@ -364,7 +376,7 @@ function rotateDistributor() {
 }
 
 function endRound(winningTeam) {
-  if (!isHost) {
+  if (!isHost && !isTestMode) {
     log('Only host can end rounds');
     return;
   }
@@ -381,10 +393,12 @@ function endRound(winningTeam) {
     startGame();
   }
   
-  broadcastToAll({
-    type: 'gameState',
-    state: gameState
-  });
+  if (!isTestMode) {
+    broadcastToAll({
+      type: 'gameState',
+      state: gameState
+    });
+  }
 }
 
 // ==================== Message Handling ====================
@@ -470,7 +484,14 @@ function updateGameDisplay() {
   document.getElementById('currentRound').textContent = gameState.currentRound;
   
   // Update player cards
-  if (playerPosition && gameState.hands[playerPosition]) {
+  if (isTestMode) {
+    // In test mode, show current test player's cards
+    if (gameState.hands[currentTestPlayer]) {
+      displayPlayerCards(gameState.hands[currentTestPlayer]);
+    }
+    // Also show all players' cards
+    displayAllPlayersCards();
+  } else if (playerPosition && gameState.hands[playerPosition]) {
     displayPlayerCards(gameState.hands[playerPosition]);
   }
   
@@ -480,7 +501,7 @@ function updateGameDisplay() {
   }
 }
 
-function displayPlayerCards(cards) {
+function displayPlayerCards(cards, playerId = null) {
   const container = document.getElementById('playerCards');
   container.innerHTML = '';
   
@@ -489,26 +510,17 @@ function displayPlayerCards(cards) {
     return;
   }
   
+  const targetPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
+  
   cards.forEach((card, index) => {
-    const cardElement = document.createElement('div');
-    cardElement.className = 'card';
-    cardElement.classList.add(card.suit === 'hearts' || card.suit === 'diamonds' ? 'red' : 'black');
-    cardElement.dataset.cardIndex = index;
-    
-    cardElement.innerHTML = `
-      <div class="card-rank">${card.rank}</div>
-      <div class="card-suit">${SUITS[card.suit]}</div>
-      <div class="card-rank-bottom">${card.rank}</div>
-    `;
-    
-    cardElement.addEventListener('click', () => {
-      // Toggle selection
-      cardElement.classList.toggle('selected');
-      // TODO: Handle card selection for playing
-    });
-    
+    const cardElement = createCardElement(card, index, targetPlayer);
     container.appendChild(cardElement);
   });
+  
+  // If in test mode, also update all players view
+  if (isTestMode) {
+    displayAllPlayersCards();
+  }
 }
 
 function log(message) {
@@ -533,9 +545,139 @@ function endRoundTest(winningTeam) {
   }
 }
 
+// ==================== Test Mode Functions ====================
+
+function startTestMode() {
+  log('Starting Test Mode - Simulating all 6 players...');
+  isTestMode = true;
+  isHost = true;
+  playerPosition = 1;
+  currentTestPlayer = 1;
+  
+  // Initialize game state with all 6 players
+  gameState.players = [1, 2, 3, 4, 5, 6];
+  
+  // Hide connection section, show game section
+  document.querySelector('.connection-section').style.display = 'none';
+  document.getElementById('gameSection').classList.remove('hidden');
+  document.getElementById('hostControls').classList.remove('hidden');
+  document.getElementById('testModeSelector').classList.remove('hidden');
+  document.getElementById('allPlayersCards').classList.remove('hidden');
+  
+  // Set player position
+  document.getElementById('playerPosition').textContent = 'Player 1 (Host) - Test Mode';
+  document.getElementById('currentTestPlayer').textContent = 'Player 1';
+  
+  // Update player buttons
+  updateTestPlayerButtons();
+  
+  log('Test Mode activated! All 6 players simulated.');
+  log('You can switch between players using the buttons above.');
+  log('Set distributor and start game to begin testing.');
+}
+
+function switchTestPlayer(playerNum) {
+  if (!isTestMode) return;
+  
+  currentTestPlayer = playerNum;
+  playerPosition = playerNum;
+  
+  document.getElementById('currentTestPlayer').textContent = `Player ${playerNum}`;
+  document.getElementById('playerPosition').textContent = `Player ${playerNum}${playerNum === 1 ? ' (Host)' : ''} - Test Mode`;
+  document.getElementById('playerCardsTitle').textContent = `Player ${playerNum} Cards`;
+  
+  // Update player buttons
+  updateTestPlayerButtons();
+  
+  // Update displayed cards
+  if (gameState.gameStarted && gameState.hands[playerNum]) {
+    displayPlayerCards(gameState.hands[playerNum]);
+  }
+  
+  log(`Switched to Player ${playerNum} view`);
+}
+
+function updateTestPlayerButtons() {
+  const buttons = document.querySelectorAll('.player-btn');
+  buttons.forEach((btn, index) => {
+    if (index + 1 === currentTestPlayer) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+function displayAllPlayersCards() {
+  if (!isTestMode || !gameState.gameStarted) return;
+  
+  const container = document.getElementById('allPlayersContainer');
+  container.innerHTML = '';
+  
+  for (let i = 1; i <= TOTAL_PLAYERS; i++) {
+    const playerHand = gameState.hands[i] || [];
+    const isTeam1 = TEAM1_PLAYERS.includes(i);
+    
+    const playerView = document.createElement('div');
+    playerView.className = `player-hand-view ${isTeam1 ? 'team1' : 'team2'}`;
+    
+    const title = document.createElement('h4');
+    title.textContent = `Player ${i} ${isTeam1 ? '(Team 1)' : '(Team 2)'}`;
+    playerView.appendChild(title);
+    
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'cards-container';
+    cardsContainer.style.minHeight = '120px';
+    
+    if (playerHand.length === 0) {
+      cardsContainer.innerHTML = '<p class="waiting-message">No cards</p>';
+    } else {
+      playerHand.forEach((card, index) => {
+        const cardElement = createCardElement(card, index, i);
+        cardsContainer.appendChild(cardElement);
+      });
+    }
+    
+    playerView.appendChild(cardsContainer);
+    container.appendChild(playerView);
+  }
+}
+
+function createCardElement(card, index, playerId = null) {
+  const cardElement = document.createElement('div');
+  cardElement.className = 'card';
+  cardElement.classList.add(card.suit === 'hearts' || card.suit === 'diamonds' ? 'red' : 'black');
+  cardElement.dataset.cardIndex = index;
+  if (playerId) {
+    cardElement.dataset.playerId = playerId;
+  }
+  
+  cardElement.innerHTML = `
+    <div class="card-rank">${card.rank}</div>
+    <div class="card-suit">${SUITS[card.suit]}</div>
+    <div class="card-rank-bottom">${card.rank}</div>
+  `;
+  
+  cardElement.addEventListener('click', () => {
+    const targetPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
+    if (targetPlayer && gameState.hands[targetPlayer]) {
+      cardElement.classList.toggle('selected');
+      log(`Player ${targetPlayer} selected card: ${card.rank} ${SUITS[card.suit]}`);
+    } else if (!isTestMode && playerPosition) {
+      // Normal mode - allow card selection
+      cardElement.classList.toggle('selected');
+      log(`Selected card: ${card.rank} ${SUITS[card.suit]}`);
+    }
+  });
+  
+  return cardElement;
+}
+
 // Expose functions globally
 window.startGame = startGame;
 window.setDistributor = setDistributor;
 window.createHost = createHost;
 window.joinHost = joinHost;
 window.endRoundTest = endRoundTest;
+window.startTestMode = startTestMode;
+window.switchTestPlayer = switchTestPlayer;

@@ -12,6 +12,13 @@
     <div class="connection-section">
       <h1>6 Player Card Game</h1>
       
+      <div class="test-mode-section">
+        <button id="testModeBtn" onclick="startTestMode()" style="background: #ff9800;">🧪 Test Mode (All 6 Players)</button>
+        <p class="test-mode-hint">Test the game logic without needing 6 devices</p>
+      </div>
+
+      <hr style="margin: 20px 0; border: 1px solid #ddd;">
+
       <div class="host-section">
         <button id="createHostBtn" onclick="createHost()">Create Host</button>
         <p>Room ID: <span id="roomId">---</span></p>
@@ -67,12 +74,32 @@
         </div>
       </div>
 
+      <!-- Test Mode Player Selector -->
+      <div id="testModeSelector" class="test-mode-selector hidden">
+        <h3>Switch Player View</h3>
+        <div class="player-buttons">
+          <button class="player-btn" onclick="switchTestPlayer(1)">Player 1 (Host)</button>
+          <button class="player-btn" onclick="switchTestPlayer(2)">Player 2</button>
+          <button class="player-btn" onclick="switchTestPlayer(3)">Player 3</button>
+          <button class="player-btn" onclick="switchTestPlayer(4)">Player 4</button>
+          <button class="player-btn" onclick="switchTestPlayer(5)">Player 5</button>
+          <button class="player-btn" onclick="switchTestPlayer(6)">Player 6</button>
+        </div>
+        <p>Currently viewing: <strong id="currentTestPlayer">Player 1</strong></p>
+      </div>
+
       <!-- Player Cards -->
       <div class="player-cards-section">
-        <h3>Your Cards</h3>
+        <h3 id="playerCardsTitle">Your Cards</h3>
         <div id="playerCards" class="cards-container">
           <p class="waiting-message">Waiting for game to start...</p>
         </div>
+      </div>
+
+      <!-- All Players Cards (Test Mode) -->
+      <div id="allPlayersCards" class="all-players-cards hidden">
+        <h3>All Players' Cards (Test Mode)</h3>
+        <div id="allPlayersContainer" class="all-players-container"></div>
       </div>
 
       <!-- Game Log -->

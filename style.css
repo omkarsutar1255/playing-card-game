@@ -32,6 +32,21 @@ h1 {
   text-align: center;
 }
 
+.test-mode-section {
+  margin: 20px 0;
+  padding: 20px;
+  background: #fff3e0;
+  border-radius: 10px;
+  border: 2px solid #ff9800;
+}
+
+.test-mode-hint {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+}
+
 .host-section, .join-section {
   margin: 20px 0;
   padding: 20px;
@@ -280,6 +295,80 @@ input[type="text"]:focus {
   padding-left: 10px;
 }
 
+.test-mode-selector {
+  margin: 20px 0;
+  padding: 20px;
+  background: #e8f5e9;
+  border-radius: 10px;
+  border: 2px solid #4caf50;
+}
+
+.test-mode-selector h3 {
+  margin-bottom: 15px;
+  color: #2e7d32;
+}
+
+.player-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.player-btn {
+  background: #4caf50;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.3s;
+}
+
+.player-btn:hover {
+  background: #45a049;
+}
+
+.player-btn.active {
+  background: #2e7d32;
+  box-shadow: 0 0 10px rgba(46, 125, 50, 0.5);
+}
+
+.all-players-cards {
+  margin-top: 30px;
+}
+
+.all-players-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.player-hand-view {
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border: 2px solid #ddd;
+}
+
+.player-hand-view h4 {
+  margin-bottom: 10px;
+  color: #667eea;
+  text-align: center;
+}
+
+.player-hand-view.team1 {
+  border-color: #2196f3;
+  background: #e3f2fd;
+}
+
+.player-hand-view.team2 {
+  border-color: #ff9800;
+  background: #fff3e0;
+}
+
 @media (max-width: 768px) {
   .game-info {
     grid-template-columns: 1fr;
@@ -293,5 +382,9 @@ input[type="text"]:focus {
     width: 60px;
     height: 84px;
     font-size: 12px;
+  }
+
+  .all-players-container {
+    grid-template-columns: 1fr;
   }
 }
