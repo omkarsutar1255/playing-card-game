@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>P2P Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <h2>P2P Browser Test</h2>
+
+  <button onclick="createHost()">Create Host</button>
+  <p>Room ID: <span id="roomId">---</span></p>
+
+  <hr>
+
+  <input id="joinId" placeholder="Enter Room ID">
+  <button onclick="joinHost()">Join Host</button>
+
+  <hr>
+
+  <input id="msg" placeholder="Type message">
+  <button onclick="sendMsg()">Send</button>
+
+  <pre id="log"></pre>
+
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <script>
+    let peer, conn;
+
+    function log(msg) {
+      document.getElementById("log").innerText += msg + "\n";
+    }
+
+    function createHost() {
+      peer = new Peer();
+      peer.on('open', id => {
+        document.getElementById("roomId").innerText = id;
+        log("Hosting as: " + id);
+      });
+
+      peer.on('connection', c => {
+        conn = c;
+        log("Player joined");
+        conn.on('data', data => log("Received: " + data));
+      });
+    }
+
+    function joinHost() {
+      peer = new Peer();
+      const roomId = document.getElementById("joinId").value;
+      conn = peer.connect(roomId);
+
+      conn.on('open', () => {
+        log("Connected to host");
+        conn.on('data', data => log("Received: " + data));
+      });
+    }
+
+    function sendMsg() {
+      if (conn) {
+        conn.send(document.getElementById("msg").value);
+      }
+    }
+  </script>
+</body>
+</html>
