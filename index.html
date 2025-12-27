@@ -1,79 +1,66 @@
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>P2P Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <h2>P2P Browser Test</h2>
 
-<script>
-  let peer;
-  let conn;
+  <button onclick="createHost()">Create Host</button>
+  <p>Room ID: <span id="roomId">---</span></p>
 
-  function log(msg) {
-    document.getElementById("log").innerText += msg + "\n";
-  }
+  <hr>
 
-  function createHost() {
-    log("Creating host...");
-    peer = new Peer(undefined, {
-      debug: 2
-    });
+  <input id="joinId" placeholder="Enter Room ID">
+  <button onclick="joinHost()">Join Host</button>
 
-    peer.on('open', id => {
-      document.getElementById("roomId").innerText = id;
-      log("Host ID: " + id);
-    });
+  <hr>
 
-    peer.on('connection', c => {
-      conn = c;
-      log("Client connected");
+  <input id="msg" placeholder="Type message">
+  <button onclick="sendMsg()">Send</button>
 
-      conn.on('data', data => {
-        log("Received: " + data);
-      });
-    });
+  <pre id="log"></pre>
 
-    peer.on('error', err => {
-      log("Peer error: " + err);
-    });
-  }
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
-  function joinHost() {
-    const roomId = document.getElementById("joinId").value.trim();
-    if (!roomId) {
-      log("Enter Room ID first");
-      return;
+  <script>
+    let peer, conn;
+
+    function log(msg) {
+      document.getElementById("log").innerText += msg + "\n";
     }
 
-    log("Joining host...");
-    peer = new Peer(undefined, {
-      debug: 2
-    });
+    function createHost() {
+      peer = new Peer();
+      peer.on('open', id => {
+        document.getElementById("roomId").innerText = id;
+        log("Hosting as: " + id);
+      });
 
-    peer.on('open', () => {
-      log("My peer created, connecting...");
+      peer.on('connection', c => {
+        conn = c;
+        log("Player joined");
+        conn.on('data', data => log("Received: " + data));
+      });
+    }
+
+    function joinHost() {
+      peer = new Peer();
+      const roomId = document.getElementById("joinId").value;
       conn = peer.connect(roomId);
 
       conn.on('open', () => {
         log("Connected to host");
+        conn.on('data', data => log("Received: " + data));
       });
-
-      conn.on('data', data => {
-        log("Received: " + data);
-      });
-
-      conn.on('error', err => {
-        log("Connection error: " + err);
-      });
-    });
-
-    peer.on('error', err => {
-      log("Peer error: " + err);
-    });
-  }
-
-  function sendMsg() {
-    if (!conn || !conn.open) {
-      log("Not connected yet");
-      return;
     }
-    const msg = document.getElementById("msg").value;
-    conn.send(msg);
-    log("Sent: " + msg);
-  }
-</script>
+
+    function sendMsg() {
+      if (conn) {
+        conn.send(document.getElementById("msg").value);
+      }
+    }
+  </script>
+</body>
+</html>
