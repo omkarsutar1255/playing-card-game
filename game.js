@@ -292,8 +292,18 @@ function startGame() {
     return;
   }
   
-  // Randomly pick initial distributor if not set
-  if (!gameState.currentDistributor) {
+  // Ask for confirmation if starting a new game
+  if (gameState.gameStarted) {
+    const confirmed = confirm('Are you sure you want to start a new game? Current game progress will be lost.');
+    if (!confirmed) {
+      return;
+    }
+  }
+  
+  // Rotate distributor for new game (or set random if first game)
+  if (gameState.currentDistributor) {
+    rotateDistributor();
+  } else {
     setRandomDistributor();
   }
   
@@ -303,9 +313,7 @@ function startGame() {
   gameState.currentRound = 1;
   gameState.gameStarted = true;
   
-  // Reset points for new game
-  gameState.team1Points = 0;
-  gameState.team2Points = 0;
+  // Reset rounds won for new game (points are kept across games)
   gameState.team1Rounds = 0;
   gameState.team2Rounds = 0;
   
@@ -334,8 +342,10 @@ function startGame() {
   log(`Round ${gameState.currentRound} of ${ROUNDS_PER_GAME}`);
   log(`Player ${firstPlayer} starts the round (next player after distributor)`);
   
+  // Auto-switch to first player in test mode
   if (isTestMode) {
-    log('Test Mode: All players\' cards are displayed below. Switch between players to test.');
+    switchTestPlayer(firstPlayer);
+    log('Test Mode: All players\' cards are displayed below. Auto-switching to current player.');
   }
 }
 
@@ -357,26 +367,55 @@ function setRandomDistributor() {
 
 // ==================== Points System ====================
 
-function updatePoints(winningTeam) {
+function updateRoundsWon(winningTeam) {
+  // Only track rounds won, don't calculate points yet
   if (winningTeam === 1) {
-    // Team1 wins → +5 points to Team1
-    gameState.team1Points += 5;
     gameState.team1Rounds++;
+    log(`Team 1 wins round ${gameState.currentRound}. Total rounds: ${gameState.team1Rounds}`);
   } else if (winningTeam === 2) {
-    // Team2 wins → -10 points from Team1
-    gameState.team1Points -= 10;
     gameState.team2Rounds++;
-    
-    // Check if points shift from Team1 to Team2
-    if (gameState.team1Points < 0) {
-      const negativePoints = Math.abs(gameState.team1Points);
-      gameState.team2Points += negativePoints;
-      gameState.team1Points = 0;
-      
-      // Distributor changes to next player in rotation (Team1)
-      rotateDistributor();
-      log(`Points shifted! Team2 now has ${gameState.team2Points} points`);
+    log(`Team 2 wins round ${gameState.currentRound}. Total rounds: ${gameState.team2Rounds}`);
+  }
+  
+  updateGameDisplay();
+}
+
+function calculateGamePoints() {
+  // Calculate points after all 8 rounds are complete
+  const team1Rounds = gameState.team1Rounds;
+  const team2Rounds = gameState.team2Rounds;
+  
+  log(`Game complete! Team 1: ${team1Rounds} rounds, Team 2: ${team2Rounds} rounds`);
+  
+  if (team1Rounds > 4) {
+    // Team 1 wins (more than 4 rounds)
+    if (gameState.team2Points === 0) {
+      // Opponent has 0 points → +5 points to Team 1
+      gameState.team1Points += 5;
+      log(`Team 1 wins! +5 points. Team 1 now has ${gameState.team1Points} points.`);
+    } else {
+      // Opponent has points → -10 from Team 2, but don't go negative
+      const pointsToReduce = Math.min(10, gameState.team2Points);
+      gameState.team2Points -= pointsToReduce;
+      gameState.team1Points += pointsToReduce;
+      log(`Team 1 wins! Reduced ${pointsToReduce} points from Team 2. Team 1: ${gameState.team1Points}, Team 2: ${gameState.team2Points}`);
     }
+  } else if (team2Rounds > 4) {
+    // Team 2 wins (more than 4 rounds)
+    if (gameState.team1Points === 0) {
+      // Opponent has 0 points → +5 points to Team 2
+      gameState.team2Points += 5;
+      log(`Team 2 wins! +5 points. Team 2 now has ${gameState.team2Points} points.`);
+    } else {
+      // Opponent has points → -10 from Team 1, but don't go negative
+      const pointsToReduce = Math.min(10, gameState.team1Points);
+      gameState.team1Points -= pointsToReduce;
+      gameState.team2Points += pointsToReduce;
+      log(`Team 2 wins! Reduced ${pointsToReduce} points from Team 1. Team 1: ${gameState.team1Points}, Team 2: ${gameState.team2Points}`);
+    }
+  } else {
+    // Tie (each team won 4 rounds) - no points awarded
+    log(`Game tied! Both teams won 4 rounds. No points awarded.`);
   }
   
   // Check special rule: If Team2 exceeds 32 points
@@ -391,27 +430,42 @@ function updatePoints(winningTeam) {
 }
 
 function rotateDistributor() {
-  // Rotate to next player clockwise
-  gameState.currentDistributor = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
-  log(`Distributor rotated to Player ${gameState.currentDistributor}`);
+  // Rotate to next player clockwise for new game
+  if (gameState.currentDistributor) {
+    gameState.currentDistributor = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
+  } else {
+    // First game - randomly select
+    gameState.currentDistributor = Math.floor(Math.random() * TOTAL_PLAYERS) + 1;
+  }
+  log(`Distributor for new game: Player ${gameState.currentDistributor}`);
 }
 
 function endRound(winningTeam) {
+  // This function is kept for backward compatibility but uses new logic
   if (!isHost && !isTestMode) {
     log('Only host can end rounds');
     return;
   }
   
-  updatePoints(winningTeam);
+  // Update rounds won (no points calculated yet)
+  updateRoundsWon(winningTeam);
   
   if (gameState.currentRound < ROUNDS_PER_GAME) {
     gameState.currentRound++;
     log(`Round ${gameState.currentRound} starting...`);
   } else {
-    log('Game completed! Starting new game...');
-    // Start new game with new distributor
-    rotateDistributor();
-    startGame();
+    log('Game completed! Calculating points...');
+    // Calculate points after all rounds
+    calculateGamePoints();
+    
+    // Ask if user wants to start new game
+    setTimeout(() => {
+      const startNew = confirm('Game completed! Points calculated. Do you want to start a new game?');
+      if (startNew) {
+        rotateDistributor();
+        startGame();
+      }
+    }, 1000);
   }
   
   if (!isTestMode) {
@@ -670,6 +724,11 @@ function saveSelectedCard(playerId, card, cardIndex) {
   } else {
     roundState.currentTurn = nextPlayer;
     log(`Next player: Player ${nextPlayer}`);
+    
+    // Auto-switch to next player in test mode
+    if (isTestMode) {
+      switchTestPlayer(nextPlayer);
+    }
   }
   
   updateGameDisplay();
@@ -723,20 +782,32 @@ function completeRound() {
   
   log(`Round ${gameState.currentRound} winner: Player ${winner} (Team ${winnerTeam})`);
   
+  // Update rounds won (no points calculated yet)
+  updateRoundsWon(winnerTeam);
+  
   // Clear round state
   gameState.roundState.cardsPlayed = {};
   gameState.roundState.baseSuit = null;
   gameState.roundState.roundComplete = false;
   
-  // Update points
-  updatePoints(winnerTeam);
-  
-  // Check if game is complete
+  // Check if game is complete (all 8 rounds done)
   if (gameState.currentRound >= ROUNDS_PER_GAME) {
-    log('Game completed! Starting new game...');
-    // Start new game with new distributor
-    rotateDistributor();
-    startGame();
+    log('All 8 rounds completed! Calculating game points...');
+    // Calculate points after all rounds
+    calculateGamePoints();
+    
+    // Ask if user wants to start new game
+    setTimeout(() => {
+      const startNew = confirm('Game completed! Points calculated. Do you want to start a new game?');
+      if (startNew) {
+        // Reset rounds for new game
+        gameState.team1Rounds = 0;
+        gameState.team2Rounds = 0;
+        // Rotate distributor and start new game
+        rotateDistributor();
+        startGame();
+      }
+    }, 1000);
     return;
   }
   
@@ -746,6 +817,11 @@ function completeRound() {
   gameState.roundState.currentTurn = firstPlayer;
   
   log(`Round ${gameState.currentRound} starting. Player ${firstPlayer} begins.`);
+  
+  // Auto-switch to next player in test mode
+  if (isTestMode) {
+    switchTestPlayer(firstPlayer);
+  }
   
   updateGameDisplay();
   
