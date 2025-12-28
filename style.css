@@ -10,10 +10,8 @@ body {
 }
 h1, h2 { text-align: center; color: #667eea; margin-bottom: 15px; }
 
-/* --- Setup & Lobby Styles --- */
-.setup-section, .lobby-section {
-  text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px; margin-top: 20px;
-}
+/* --- Setup & Lobby --- */
+.setup-section, .lobby-section { text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px; margin-top: 20px; }
 .setup-form { max-width: 400px; margin: 0 auto; text-align: left; }
 .input-group { margin-bottom: 15px; }
 .input-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
@@ -29,7 +27,7 @@ h1, h2 { text-align: center; color: #667eea; margin-bottom: 15px; }
 .player-list li { padding: 8px; border-bottom: 1px solid #eee; font-size: 15px; }
 .player-list li:last-child { border-bottom: none; }
 
-/* --- Game Styles --- */
+/* --- Game UI --- */
 .connection-section { text-align: center; }
 .test-mode-section { margin: 10px 0; padding: 10px; background: #fff3e0; border-radius: 8px; border: 1px solid #ff9800; }
 .host-section, .join-section { margin: 10px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }
@@ -47,20 +45,13 @@ button:disabled { background: #ccc; cursor: not-allowed; }
 .team { flex: 1; padding: 10px; border-radius: 8px; text-align: center; position: relative; }
 .team1 { background: #e3f2fd; border: 1px solid #2196f3; }
 .team2 { background: #fff3e0; border: 1px solid #ff9800; }
-.leader-crown {
-  font-size: 24px; position: absolute; top: -15px; right: -10px;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.2); animation: bounce 2s infinite;
-}
+.leader-crown { font-size: 24px; position: absolute; top: -15px; right: -10px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); animation: bounce 2s infinite; }
 .game-meta { flex: 1; padding: 10px; background: #f5f5f5; border-radius: 8px; text-align: center; font-size: 13px; min-width: 200px; }
 .turn-info { font-weight: bold; color: #667eea; font-size: 15px; }
 .base-suit-info { font-weight: bold; color: #ff9800; }
 .super-suit-info { font-weight: bold; color: #9c27b0; background: #f3e5f5; padding: 2px 6px; border-radius: 4px; }
 .target-indicator { margin-top: 8px; font-size: 14px; background: rgba(255,255,255,0.6); padding: 4px 8px; border-radius: 12px; display: inline-block; }
-.game-winner-indicator {
-  font-size: 16px; font-weight: bold; color: #2e7d32;
-  background: #e8f5e9; padding: 4px; border-radius: 4px; margin-top: 5px;
-  border: 1px solid #4caf50; animation: pulse 2s infinite;
-}
+.game-winner-indicator { font-size: 16px; font-weight: bold; color: #2e7d32; background: #e8f5e9; padding: 4px; border-radius: 4px; margin-top: 5px; border: 1px solid #4caf50; animation: pulse 2s infinite; }
 
 .round-cards-section { margin: 10px 0; padding: 10px; background: #f0f4f8; border-radius: 8px; border: 1px solid #d1d9e6; }
 .round-cards-container { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
@@ -85,12 +76,17 @@ button:disabled { background: #ccc; cursor: not-allowed; }
 .play-card-section { padding: 10px; background: #e8f5e9; border-radius: 6px; text-align: center; }
 .hidden-card-display { margin-top: 10px; padding: 5px; background: #fff9c4; border-radius: 6px; border: 1px solid #fbc02d; }
 
+/* POPUPS */
+.winner-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2999; }
 .winner-popup {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
   padding: 30px; border-radius: 15px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-  text-align: center; z-index: 3000; border: 4px solid #fff;
+  text-align: center; z-index: 3000; border: 4px solid #fff; min-width: 300px;
 }
+.winner-popup h2 { color: #fff; font-size: 2em; margin-bottom: 10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+.winner-popup p { color: #fff; font-size: 1.2em; font-weight: bold; }
+
 .round-result-popup {
   position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
   background: white; padding: 20px; border-radius: 12px;

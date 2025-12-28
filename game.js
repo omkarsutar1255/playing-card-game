@@ -58,9 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const inputs = ['hostNameInput', 'team1NameInput', 'team2NameInput'];
   inputs.forEach(id => document.getElementById(id).addEventListener('input', checkHostInputs));
   document.getElementById('playerNameInput').addEventListener('input', checkClientInputs);
-  
-  // Re-bind the click handler to the new function name just in case HTML hasn't updated in cache
-  // But strictly we rely on window.openHiddenCard = requestOpenHiddenCard (see bottom)
   log('Ready to connect.');
 });
 
@@ -214,7 +211,6 @@ function handleHostMessage(data, conn) {
                const actualIndex = hand.findIndex(c => c.id === msg.action.card.id);
                if(actualIndex !== -1) saveSelectedCard(msg.playerId, msg.action.card, actualIndex);
             } else if (msg.action.type === 'openHiddenCard' && !gameState.gameCompleted) {
-               // *** HOST RECEIVES REQUEST: EXECUTE WITHOUT CONFIRMATION ***
                executeOpenHiddenCard(msg.playerId);
             }
         }
@@ -257,8 +253,15 @@ function handleClientMessage(data) {
             gameState = msg.state;
             updateGameDisplay();
         } 
-        else if (msg.type === 'showWinnerPopup') showWinnerPopup();
-        else if (msg.type === 'playEndSound') playSound('cheers');
+        else if (msg.type === 'showGameResult') {
+            showGameResultPopup(msg.teamName);
+        }
+        else if (msg.type === 'show32Reward') {
+            show32RewardPopup();
+        }
+        else if (msg.type === 'readyForNext') {
+            if (isHost) document.getElementById('nextGameButton').classList.remove('hidden');
+        }
     } catch (e) { console.log(e); }
 }
 
@@ -377,7 +380,9 @@ function checkGameWinner() {
   if (gameWinner) { endGame(gameWinner); return true; }
   return false; 
 }
+
 function calculateGamePoints(winningTeam) {
+  // 1. Point Calculation
   if (winningTeam === 1) {
     if (gameState.team2Points === 0) gameState.team1Points += 5;
     else { const red = Math.min(10, gameState.team2Points); gameState.team2Points -= red; gameState.team1Points += red; }
@@ -385,31 +390,85 @@ function calculateGamePoints(winningTeam) {
     if (gameState.team1Points === 0) gameState.team2Points += 5;
     else { const red = Math.min(10, gameState.team1Points); gameState.team1Points -= red; gameState.team2Points += red; }
   }
+  
+  // 2. 32-Point Check
   let triggered32 = false;
   if (gameState.team1Points >= 32) { gameState.team1Points -= 32; triggered32 = true; }
   else if (gameState.team2Points >= 32) { gameState.team2Points -= 32; triggered32 = true; }
-  if(triggered32) showWinnerPopup(); 
+  
+  // 3. Next Distributor
   gameState.nextDistributor = determineNextDistributor(winningTeam, triggered32);
+  
+  return { triggered32 };
 }
-function showWinnerPopup() {
-    playSound('winner'); 
-    const popup = document.getElementById('winnerPopup');
-    popup.classList.remove('hidden');
-    setTimeout(() => popup.classList.add('hidden'), 5000); 
-}
+
 function endGame(winningTeam) {
   gameState.gameCompleted = true;
   gameState.gameWinnerTeam = winningTeam;
   gameState.roundState.roundComplete = true; 
-  calculateGamePoints(winningTeam);
-  setTimeout(() => playSound('cheers'), 500);
+  
+  // 1. Calculate Points & Check Special Rules
+  const result = calculateGamePoints(winningTeam);
+  
   updateGameDisplay();
-  if (isHost) { document.getElementById('nextGameButton').classList.remove('hidden'); }
-  if (!isTestMode) {
-    broadcastToAll({ type: 'gameState', state: gameState });
-    if (gameState.nextDistributor && (Math.abs(gameState.nextDistributor - gameState.currentDistributor) > 1)) broadcastToAll({ type: 'showWinnerPopup' });
-    broadcastToAll({ type: 'playEndSound' });
-  }
+  
+  // 2. Broadcast Final State to Sync Points/Rounds
+  if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
+
+  // 3. Initiate Sequence (Host coordinates)
+  initiateEndGameSequence(winningTeam, result.triggered32);
+}
+
+function initiateEndGameSequence(winningTeam, triggered32) {
+    const winnerName = winningTeam === 1 ? gameState.config.team1Name : gameState.config.team2Name;
+    
+    // STEP 1: Game Win Popup & Cheers
+    showGameResultPopup(winnerName); // Host Local
+    if (!isTestMode) broadcastToAll({ type: 'showGameResult', teamName: winnerName });
+    
+    // Wait 5 Seconds
+    setTimeout(() => {
+        // Hide Win Popup
+        const overlay = document.getElementById('popupOverlay');
+        const winPop = document.getElementById('gameResultPopup');
+        winPop.classList.add('hidden');
+        overlay.classList.add('hidden');
+        
+        if (triggered32) {
+            // STEP 2: 32 Reward Popup & Winner Sound
+            show32RewardPopup(); // Host Local
+            if (!isTestMode) broadcastToAll({ type: 'show32Reward' });
+            
+            // Wait another 5 Seconds for 32 popup
+            setTimeout(() => {
+                const wPop = document.getElementById('winnerPopup');
+                wPop.classList.add('hidden');
+                overlay.classList.add('hidden');
+                
+                // STEP 3: Next Game Button
+                if (isHost) document.getElementById('nextGameButton').classList.remove('hidden');
+                if (!isTestMode) broadcastToAll({ type: 'readyForNext' });
+                
+            }, 5000);
+        } else {
+            // No 32 Rule, go straight to Next Game
+            if (isHost) document.getElementById('nextGameButton').classList.remove('hidden');
+            if (!isTestMode) broadcastToAll({ type: 'readyForNext' });
+        }
+    }, 5000);
+}
+
+function showGameResultPopup(teamName) {
+    playSound('cheers');
+    document.getElementById('gameResultTitle').textContent = `${teamName} Wins!`;
+    document.getElementById('gameResultPopup').classList.remove('hidden');
+    document.getElementById('popupOverlay').classList.remove('hidden');
+}
+
+function show32RewardPopup() {
+    playSound('winner'); 
+    document.getElementById('winnerPopup').classList.remove('hidden');
+    document.getElementById('popupOverlay').classList.remove('hidden');
 }
 
 function calculateRoundWinner() {
@@ -539,37 +598,21 @@ function nextPlayer() {
   saveSelectedCard(p, card, idx);
 }
 
-// === NEW OPEN HIDDEN CARD LOGIC ===
-
-// 1. UI Entry Point (Called by button click)
 function requestOpenHiddenCard() {
   const p = isTestMode ? currentTestPlayer : playerPosition;
-  
-  // Ask for confirmation immediately on the requester's device
   if(!confirm("Are you sure you want to Open the Hidden Card?")) return;
-  
-  if(!isHost && !isTestMode) { 
-      // If client, send message (Already confirmed by user)
-      sendPlayerAction({type:'openHiddenCard'}); 
-      return; 
-  }
-  
-  // If Host, execute directly
+  if(!isHost && !isTestMode) { sendPlayerAction({type:'openHiddenCard'}); return; }
   executeOpenHiddenCard(p);
 }
 
-// 2. Execution Logic (Called by Host directly or via Message)
 function executeOpenHiddenCard(openerId) {
   gameState.superSuit = gameState.hiddenCard.suit;
   gameState.hiddenCardOpened = true;
-  gameState.hiddenCardOpener = openerId; // Use correct ID!
-  
+  gameState.hiddenCardOpener = openerId; 
   gameState.roundState.justOpenedHidden = true;
   gameState.roundState.hiddenOpenedInRound = true; 
-  
   const fp = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
   gameState.hands[fp].push(gameState.hiddenCard);
-  
   updateGameDisplay();
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
 }
@@ -801,7 +844,7 @@ window.joinHost = joinHost;
 window.startTestMode = startTestMode;
 window.switchTestPlayer = switchTestPlayer;
 window.nextPlayer = nextPlayer;
-window.openHiddenCard = requestOpenHiddenCard; // Point HTML button to the REQUEST function
+window.openHiddenCard = requestOpenHiddenCard; 
 window.startGame = startGame;
 window.startNextGame = startNextGame;
 window.submitHostSetup = submitHostSetup;
