@@ -58,6 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const inputs = ['hostNameInput', 'team1NameInput', 'team2NameInput'];
   inputs.forEach(id => document.getElementById(id).addEventListener('input', checkHostInputs));
   document.getElementById('playerNameInput').addEventListener('input', checkClientInputs);
+  
+  // Re-bind the click handler to the new function name just in case HTML hasn't updated in cache
+  // But strictly we rely on window.openHiddenCard = requestOpenHiddenCard (see bottom)
   log('Ready to connect.');
 });
 
@@ -175,7 +178,7 @@ function updateLobbyUI() {
     }
 }
 
-// ==================== MESSAGING ====================
+// ==================== MESSAGING & HANDLERS ====================
 
 function handleHostMessage(data, conn) {
     try {
@@ -211,7 +214,8 @@ function handleHostMessage(data, conn) {
                const actualIndex = hand.findIndex(c => c.id === msg.action.card.id);
                if(actualIndex !== -1) saveSelectedCard(msg.playerId, msg.action.card, actualIndex);
             } else if (msg.action.type === 'openHiddenCard' && !gameState.gameCompleted) {
-               openHiddenCard();
+               // *** HOST RECEIVES REQUEST: EXECUTE WITHOUT CONFIRMATION ***
+               executeOpenHiddenCard(msg.playerId);
             }
         }
     } catch (e) { console.log(e); }
@@ -529,26 +533,45 @@ function nextPlayer() {
   const card = gameState.hands[p][idx];
   if(!canPlayCard(card, p)) return;
   
-  // Visual feedback immediate
   document.getElementById('nextBtn').disabled = true;
   document.getElementById('nextBtn').textContent = "Waiting...";
   
   saveSelectedCard(p, card, idx);
 }
 
-function openHiddenCard() {
+// === NEW OPEN HIDDEN CARD LOGIC ===
+
+// 1. UI Entry Point (Called by button click)
+function requestOpenHiddenCard() {
   const p = isTestMode ? currentTestPlayer : playerPosition;
-  if(!confirm("Open Hidden Card?")) return;
-  if(!isHost && !isTestMode) { sendPlayerAction({type:'openHiddenCard'}); return; }
+  
+  // Ask for confirmation immediately on the requester's device
+  if(!confirm("Are you sure you want to Open the Hidden Card?")) return;
+  
+  if(!isHost && !isTestMode) { 
+      // If client, send message (Already confirmed by user)
+      sendPlayerAction({type:'openHiddenCard'}); 
+      return; 
+  }
+  
+  // If Host, execute directly
+  executeOpenHiddenCard(p);
+}
+
+// 2. Execution Logic (Called by Host directly or via Message)
+function executeOpenHiddenCard(openerId) {
   gameState.superSuit = gameState.hiddenCard.suit;
   gameState.hiddenCardOpened = true;
-  gameState.hiddenCardOpener = p;
+  gameState.hiddenCardOpener = openerId; // Use correct ID!
+  
   gameState.roundState.justOpenedHidden = true;
   gameState.roundState.hiddenOpenedInRound = true; 
+  
   const fp = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
   gameState.hands[fp].push(gameState.hiddenCard);
+  
   updateGameDisplay();
-  if(!isTestMode) broadcastToAll({type:'gameState', state: gameState});
+  if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
 }
 
 function sortHand(cards) {
@@ -735,7 +758,6 @@ function log(msg) {
 function startTestMode() {
   isTestMode = true; isHost = true; playerPosition = 1; currentTestPlayer = 1;
   gameState.players = [1, 2, 3, 4, 5, 6];
-  // Fill Dummy Names
   gameState.config.playerNames = {1:'P1',2:'P2',3:'P3',4:'P4',5:'P5',6:'P6'};
   gameState.config.team1Name = "Team 1";
   gameState.config.team2Name = "Team 2";
@@ -779,7 +801,7 @@ window.joinHost = joinHost;
 window.startTestMode = startTestMode;
 window.switchTestPlayer = switchTestPlayer;
 window.nextPlayer = nextPlayer;
-window.openHiddenCard = openHiddenCard;
+window.openHiddenCard = requestOpenHiddenCard; // Point HTML button to the REQUEST function
 window.startGame = startGame;
 window.startNextGame = startNextGame;
 window.submitHostSetup = submitHostSetup;
