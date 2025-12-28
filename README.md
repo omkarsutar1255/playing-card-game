@@ -1,85 +1,94 @@
-# 6 Player Card Game
+# 6 Player Card Game (P2P)
 
-A multiplayer card game for 6 players using PeerJS for P2P connections. Perfect for hosting on GitHub Pages!
+A multiplayer strategic card game for 6 players using PeerJS for peer-to-peer connections. The game features complex trump mechanics, asymmetric winning targets, and a dynamic scoring system.
 
-## Game Rules
+## 🎮 Game Overview
 
-### Setup
-- **Total Players**: 6
-- **Teams**:
-  - Team 1: Player 1, Player 3, Player 5
-  - Team 2: Player 2, Player 4, Player 6
-- **Cards**: 48 cards (all 52 cards minus all 2s)
-- **Cards per Player**: 8 cards
-- **Rounds per Game**: 8 rounds
+- **Players**: 6 (Split into 2 Teams)
+- **Deck**: 48 Cards (Standard deck minus all 2s)
+- **Hands**: 8 cards per player
+- **Technology**: Vanilla JS, HTML, CSS, PeerJS (No backend required)
 
-### Card Distribution
-- Players sit in circular order: P1 → P2 → P3 → P4 → P5 → P6 → back to P1
-- Cards are distributed clockwise starting from the player after the distributor
-- Example: If P4 is distributor, cards go to: P5, P6, P1, P2, P3, P4, repeat
+## ⚔️ Teams & Setup
 
-### Points System
-- **Team 1 wins a round**: +5 points to Team 1
-- **Team 2 wins a round**: -10 points from Team 1
-- **Points shift**: When Team 1 points go negative:
-  - Absolute negative points are added to Team 2
-  - Team 1 points reset to 0
-  - Distributor changes to next player in rotation (Team 1)
-- **Special Rule**: If Team 2 exceeds 32 points:
-  - Team 2 keeps only points above 32
-  - Distributor changes directly to P1 (Team 1)
+- **Team 1**: Player 1, Player 3, Player 5
+- **Team 2**: Player 2, Player 4, Player 6
+- **Seating**: Circular (P1 → P2 → ... → P6 → P1)
 
-### Distributor Rotation
-- After each game, distributor rotates clockwise
-- Special rotation occurs when points shift (see above)
+## 📜 Game Rules
 
-## How to Play
+### 1. The Deal & First Move
+- **Distributor**: Chosen randomly for the first game, then rotates clockwise (with special skip rules).
+- **First Player**: The player sitting immediately left of the distributor starts the game.
+- **Attacker vs. Defender**:
+  - The team that makes the **First Move** is the **Attacker**.
+  - The team that distributed the cards is the **Defender**.
 
-### For Host (Player 1)
-1. Open the game in your browser
-2. Click "Create Host"
-3. Share the Room ID with other players
-4. Wait for all 6 players to connect
-5. Set the initial distributor using the dropdown
-6. Click "Start Game" when ready
-7. Use "Team 1 Wins Round" or "Team 2 Wins Round" buttons to test round endings (winning conditions will be added later)
+### 2. The Hidden Card (Super Suit) mechanism
+At the start of every game, **one card is hidden** from the First Player's hand.
+- **Base Suit**: The suit of the first card played in a round. Players must follow this suit if possible.
+- **Opening the Hidden Card**: If a player cannot follow the Base Suit, they have the option to "Open Hidden Card".
+- **Super Suit**: The suit of the hidden card becomes the **Super Suit (Trump)** immediately upon opening.
+- **Mandatory Play**: If a player opens the hidden card, they **must** play a Super Suit card for that turn if they have one.
 
-### For Players (Players 2-6)
-1. Open the game in your browser
-2. Enter the Room ID provided by the host
-3. Click "Join Game"
-4. Wait for the host to start the game
-5. Your cards will appear once the game starts
-6. Play your cards (card selection UI will be enhanced when winning conditions are added)
+### 3. Winning a Round (Card Power)
+Cards are ranked: `3` (Low) → `A` (High).
+The winner of a round is determined by:
 
-## Technical Details
+1.  **Super Suit Logic**:
+    * **Case A (Already Open):** If the Hidden Card was opened in a *previous* round, the highest Super Suit card played wins.
+    * **Case B (Fresh Open):** If the Hidden Card is opened *during the current round*, only Super Suit cards played **by or after the opener** are valid trumps. Any Super Suit cards played *before* the reveal are treated as normal cards (and usually lose).
+2.  **Base Suit Logic**: If no valid Super Suit cards are played, the highest card of the **Base Suit** wins.
 
-- **Frontend Only**: All game logic runs in the browser
-- **P2P Communication**: Uses PeerJS for peer-to-peer connections
-- **Host Authority**: Only the host browser stores and manages game state
-- **No Reconnection**: Players cannot rejoin after disconnecting
-- **State Synchronization**: Host broadcasts game state updates to all clients
+The winner of the round leads the next round.
 
-## Files
+### 4. Winning the Game (Asymmetric Targets)
+The game ends **immediately** when a team reaches their target:
+- **Attacking Team (First Movers)**: Needs **5 Rounds** to win.
+- **Defending Team (Distributors)**: Needs **4 Rounds** to win.
 
-- `index.html` - Main game interface
-- `style.css` - Game styling
-- `game.js` - Game logic and P2P connection management
+### 5. Scoring System
+Points are calculated after a game concludes:
+- **Standard Win**: Winner gets **+5 Points**.
+- **Steal Win**: If the losing team has points, the winner "steals" points (up to 10) from the loser's score instead of generating new points.
+- **👑 King Indicator**: The team currently in the lead displays a Crown icon.
 
-## Hosting on GitHub Pages
+### 🐣 The 32-Point Rule ("Winner Winner Chicken Dinner")
+If a team's score reaches or exceeds **32 Points**:
+1.  Their score is reduced by 32 (e.g., 35 becomes 3).
+2.  A celebration popup appears.
+3.  **Distributor Penalty**: The distributor rotation skips the standard next player and jumps to the next teammate (skipping one person in the cycle).
 
-1. Push all files to a GitHub repository
-2. Go to repository Settings → Pages
-3. Select the branch and folder
-4. Your game will be available at `https://yourusername.github.io/repository-name/`
+## 🕹️ How to Play
 
-## Notes
+### Host (Player 1)
+1.  Click **Create Host**.
+2.  Share the **Room ID** with 5 friends.
+3.  (Optional) Click **📝 Setup Names** to rename Teams and Players.
+4.  Wait for all players to connect.
+5.  Click **Start Game**.
 
-- Winning conditions for each round will be implemented later
-- Currently includes test buttons for round endings
-- All game state is managed by the host browser
-- Clients send actions to host, host validates and updates state
+### Clients (Players 2-6)
+1.  Enter the **Room ID** shared by the Host.
+2.  Click **Join Game**.
+3.  Wait for the Host to start.
 
-## Browser Compatibility
+### Interface Guide
+- **Your Cards**: Click a card to select it. If valid, click "Play Selected".
+- **Round View**: The top box shows cards played in this round, ordered from first played to last played.
+- **Hidden Card**: If you cannot follow suit, a button appears to **Open Hidden Card**.
+- **Round Result**: A popup appears for 5 seconds after every round showing the winner.
 
-Works best in modern browsers that support WebRTC (Chrome, Firefox, Edge, Safari).
+## 🛠️ Technical Features
+- **Test Mode**: Simulates all 6 players in one browser window for debugging.
+- **Audio Effects**: Sounds for shuffling, winning, and cheering.
+- **Compact UI**: Optimized to prevent scrolling during gameplay.
+- **State Recovery**: The game does not support reconnection if a tab is closed (session-based).
+
+## 📂 Project Structure
+- `index.html`: Main game UI and audio elements.
+- `style.css`: Styling, animations (bounce/pulse), and responsive design.
+- `game.js`: Core logic, PeerJS networking, rules enforcement (Super Suit validation, 5v4 targets).
+
+## 🚀 Deployment
+Ready for GitHub Pages. Simply push the files to a repository and enable Pages in settings.
