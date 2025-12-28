@@ -8,9 +8,9 @@ body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   min-height: 100vh;
-  padding: 10px; /* Reduced padding */
+  padding: 10px;
   color: #333;
-  font-size: 14px; /* Slightly smaller base font */
+  font-size: 14px;
 }
 
 .container {
@@ -18,7 +18,7 @@ body {
   margin: 0 auto;
   background: white;
   border-radius: 12px;
-  padding: 15px; /* Compact padding */
+  padding: 15px;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
   position: relative;
 }
@@ -27,7 +27,7 @@ h1 {
   text-align: center;
   color: #667eea;
   margin-bottom: 15px;
-  font-size: 1.8em; /* Smaller header */
+  font-size: 1.8em;
 }
 
 /* --- Connection & Setup --- */
@@ -53,7 +53,7 @@ button {
   background: #667eea;
   color: white;
   border: none;
-  padding: 8px 16px; /* Smaller buttons */
+  padding: 8px 16px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
@@ -72,9 +72,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.setup-btn {
-  background: #9c27b0;
-}
+.setup-btn { background: #9c27b0; }
 
 input[type="text"] {
   padding: 8px;
@@ -85,7 +83,7 @@ input[type="text"] {
   width: 200px;
 }
 
-/* --- Game Layout (Compact) --- */
+/* --- Game Layout --- */
 .game-section { margin-top: 15px; }
 
 .game-info {
@@ -107,6 +105,7 @@ input[type="text"] {
   padding: 10px;
   border-radius: 8px;
   text-align: center;
+  position: relative; /* For crown positioning */
 }
 
 .team1 { background: #e3f2fd; border: 1px solid #2196f3; }
@@ -114,6 +113,21 @@ input[type="text"] {
 
 .team h3 { font-size: 1.1em; margin-bottom: 5px; }
 .team p { font-size: 13px; margin: 2px 0; }
+
+/* KING CROWN STYLE */
+.leader-crown {
+  font-size: 24px;
+  position: absolute;
+  top: -15px;
+  right: -10px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
 
 .game-meta {
   flex: 1;
@@ -127,7 +141,6 @@ input[type="text"] {
 
 .game-meta p { margin: 5px 0; }
 
-/* Indicators */
 .turn-info { font-weight: bold; color: #667eea; font-size: 15px; }
 .base-suit-info { font-weight: bold; color: #ff9800; }
 .super-suit-info { 
@@ -142,7 +155,7 @@ input[type="text"] {
   animation: pulse 2s infinite;
 }
 
-/* --- Round Cards (Compact View) --- */
+/* --- Round Cards --- */
 .round-cards-section {
   margin: 10px 0;
   padding: 10px;
@@ -171,7 +184,7 @@ input[type="text"] {
   padding: 5px;
   border-radius: 6px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-  width: 70px; /* Fixed width for compactness */
+  width: 70px;
 }
 
 .round-card-item .player-name {
@@ -185,7 +198,7 @@ input[type="text"] {
 }
 
 .round-card-item .card {
-  width: 45px; /* Mini card size */
+  width: 45px;
   height: 63px;
   font-size: 10px;
   margin: 0 auto;
@@ -202,16 +215,16 @@ input[type="text"] {
 .cards-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px; /* Tighter gap */
+  gap: 6px;
   min-height: 100px;
   padding: 10px;
   background: #f8f9fa;
   border-radius: 8px;
-  justify-content: center; /* Center cards */
+  justify-content: center;
 }
 
 .card {
-  width: 65px; /* Smaller standard card */
+  width: 65px;
   height: 91px;
   background: white;
   border: 1px solid #333;
@@ -269,6 +282,18 @@ input[type="text"] {
 .winner-popup h2 { color: #fff; font-size: 2em; margin-bottom: 10px; }
 .winner-popup p { color: #fff; font-size: 1.2em; font-weight: bold; }
 
+/* NEW ROUND RESULT POPUP */
+.round-result-popup {
+  position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
+  background: white; padding: 20px; border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4); text-align: center; z-index: 2500;
+  border: 3px solid #667eea; min-width: 250px;
+  animation: fadeIn 0.3s;
+}
+.round-result-popup h3 { color: #667eea; margin-bottom: 15px; }
+.round-result-popup .card { margin: 10px auto; transform: scale(1.2); }
+.winner-name { font-size: 1.2em; font-weight: bold; color: #333; margin-top: 10px; }
+
 .hidden { display: none !important; }
 
 @media (max-width: 768px) {
@@ -277,3 +302,10 @@ input[type="text"] {
   .card { width: 50px; height: 70px; }
   .round-card-item { width: 60px; }
 }
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+@keyframes fadeIn { from { opacity: 0; transform: translate(-50%, -60%); } to { opacity: 1; transform: translate(-50%, -50%); } }

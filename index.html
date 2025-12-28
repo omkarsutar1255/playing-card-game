@@ -33,7 +33,6 @@
     </div>
 
     <div id="gameSection" class="game-section hidden">
-      
       <div id="hostControls" class="host-controls hidden">
         <button class="setup-btn" onclick="openSetupModal()">📝 Setup Names</button>
         <button id="startGameBtn" onclick="startGame()">Start Game</button>
@@ -43,6 +42,7 @@
       <div class="game-info">
         <div class="teams">
           <div class="team team1">
+            <span id="team1Crown" class="leader-crown hidden">👑</span>
             <h3 id="team1NameDisplay">Team 1</h3>
             <p id="team1PlayersDisplay" style="font-size: 11px; color: #666;">P1, P3, P5</p>
             <p>Score: <span id="team1Points">0</span> | Rounds: <span id="team1Rounds">0</span></p>
@@ -50,6 +50,7 @@
             <div id="team1Winner" class="game-winner-indicator hidden">WINNER! 🏆</div>
           </div>
           <div class="team team2">
+            <span id="team2Crown" class="leader-crown hidden">👑</span>
             <h3 id="team2NameDisplay">Team 2</h3>
             <p id="team2PlayersDisplay" style="font-size: 11px; color: #666;">P2, P4, P6</p>
             <p>Score: <span id="team2Points">0</span> | Rounds: <span id="team2Rounds">0</span></p>
@@ -146,6 +147,12 @@
   <div id="winnerPopup" class="winner-popup hidden">
     <h2>🏆 Winner Winner<br>Chicken Dinner! 🍗</h2>
     <p>32 Point Bonus Reward!</p>
+  </div>
+  
+  <div id="roundResultPopup" class="round-result-popup hidden">
+    <h3>Round Winner</h3>
+    <div id="roundWinnerCardContainer"></div>
+    <div id="roundWinnerName" class="winner-name">Player X</div>
   </div>
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
