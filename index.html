@@ -8,15 +8,16 @@
 </head>
 <body>
   <div class="container">
+    <audio id="snd-distribute" src="distribute.mp3"></audio>
+    <audio id="snd-winner" src="winner.mp3"></audio>
+    <audio id="snd-cheers" src="cheers.mp3"></audio>
+
     <div class="connection-section">
       <h1>6 Player Card Game</h1>
       
       <div class="test-mode-section">
-        <button id="testModeBtn" onclick="startTestMode()" style="background: #ff9800;">🧪 Test Mode (All 6 Players)</button>
-        <p class="test-mode-hint">Test the game logic without needing 6 devices</p>
+        <button id="testModeBtn" onclick="startTestMode()" style="background: #ff9800;">🧪 Test Mode</button>
       </div>
-
-      <hr style="margin: 20px 0; border: 1px solid #ddd;">
 
       <div class="host-section">
         <button id="createHostBtn" onclick="createHost()">Create Host</button>
@@ -32,70 +33,42 @@
     </div>
 
     <div id="gameSection" class="game-section hidden">
+      
+      <div id="hostControls" class="host-controls hidden">
+        <button class="setup-btn" onclick="openSetupModal()">📝 Setup Names</button>
+        <button id="startGameBtn" onclick="startGame()">Start Game</button>
+        <button id="nextGameButton" class="next-game-btn hidden" onclick="startNextGame()">Next Game ➡</button>
+      </div>
+
       <div class="game-info">
         <div class="teams">
           <div class="team team1">
-            <h3>Team 1 (P1, P3, P5)</h3>
-            <p>Points: <span id="team1Points">0</span></p>
-            <p>Rounds Won: <span id="team1Rounds">0</span></p>
+            <h3 id="team1NameDisplay">Team 1</h3>
+            <p id="team1PlayersDisplay" style="font-size: 11px; color: #666;">P1, P3, P5</p>
+            <p>Score: <span id="team1Points">0</span> | Rounds: <span id="team1Rounds">0</span></p>
             <p id="team1Target" class="target-indicator hidden">Target: 5</p>
             <div id="team1Winner" class="game-winner-indicator hidden">WINNER! 🏆</div>
           </div>
           <div class="team team2">
-            <h3>Team 2 (P2, P4, P6)</h3>
-            <p>Points: <span id="team2Points">0</span></p>
-            <p>Rounds Won: <span id="team2Rounds">0</span></p>
+            <h3 id="team2NameDisplay">Team 2</h3>
+            <p id="team2PlayersDisplay" style="font-size: 11px; color: #666;">P2, P4, P6</p>
+            <p>Score: <span id="team2Points">0</span> | Rounds: <span id="team2Rounds">0</span></p>
             <p id="team2Target" class="target-indicator hidden">Target: 4</p>
             <div id="team2Winner" class="game-winner-indicator hidden">WINNER! 🏆</div>
           </div>
         </div>
         <div class="game-meta">
-          <p>Current Distributor: <span id="currentDistributor">---</span></p>
+          <p>Distributor: <span id="currentDistributor">---</span></p>
           <p>Round: <span id="currentRound">0</span> / 8</p>
-          <p>Your Position: <span id="playerPosition">---</span></p>
-          <p id="currentTurnInfo" class="turn-info hidden">Current Turn: <span id="currentTurn">---</span></p>
-          <p id="baseSuitInfo" class="base-suit-info hidden">Base Suit: <span id="baseSuit">---</span></p>
-          <p id="superSuitInfo" class="super-suit-info hidden">Super Suit: <span id="superSuit">---</span></p>
+          <p id="currentTurnInfo" class="turn-info hidden">Turn: <span id="currentTurn">---</span></p>
+          <div style="margin-top: 5px;">
+             <span id="baseSuitInfo" class="base-suit-info hidden">Base: ---</span>
+             <span id="superSuitInfo" class="super-suit-info hidden">Super: ---</span>
+          </div>
           <div id="hiddenCardDisplay" class="hidden-card-display hidden">
-            <h4>Hidden Card (Opened)</h4>
+            <h4>Hidden Card</h4>
             <div id="hiddenCardContainer" class="hidden-card-container"></div>
           </div>
-        </div>
-      </div>
-
-      <div id="hostControls" class="host-controls hidden">
-        <button id="startGameBtn" onclick="startGame()">Start Game</button>
-        <button id="nextGameButton" class="next-game-btn hidden" onclick="startNextGame()">Next Game ➡</button>
-        <div id="roundControls" class="round-controls hidden">
-          <p class="round-controls-note">Rounds complete automatically when all players select their cards.</p>
-        </div>
-      </div>
-
-      <div id="testModeSelector" class="test-mode-selector hidden">
-        <h3>Switch Player View</h3>
-        <div class="player-buttons">
-          <button class="player-btn" onclick="switchTestPlayer(1)">Player 1 (Host)</button>
-          <button class="player-btn" onclick="switchTestPlayer(2)">Player 2</button>
-          <button class="player-btn" onclick="switchTestPlayer(3)">Player 3</button>
-          <button class="player-btn" onclick="switchTestPlayer(4)">Player 4</button>
-          <button class="player-btn" onclick="switchTestPlayer(5)">Player 5</button>
-          <button class="player-btn" onclick="switchTestPlayer(6)">Player 6</button>
-        </div>
-        <p>Currently viewing: <strong id="currentTestPlayer">Player 1</strong></p>
-      </div>
-
-      <div class="player-cards-section">
-        <h3 id="playerCardsTitle">Your Cards</h3>
-        <div id="playCardSection" class="play-card-section hidden">
-          <p id="playCardMessage">Select a card and click Next to move to next player</p>
-          <div id="openHiddenCardSection" class="open-hidden-card-section hidden">
-            <p>You don't have any cards of the base suit. You must open the hidden card.</p>
-            <button id="openHiddenCardBtn" onclick="openHiddenCard()">Open Hidden Card</button>
-          </div>
-          <button id="nextBtn" onclick="nextPlayer()" disabled>Next</button>
-        </div>
-        <div id="playerCards" class="cards-container">
-          <p class="waiting-message">Waiting for game to start...</p>
         </div>
       </div>
 
@@ -104,14 +77,67 @@
         <div id="roundCards" class="round-cards-container"></div>
       </div>
 
+      <div class="player-cards-section">
+        <h3 id="playerCardsTitle">Your Cards <span id="playerPosition"></span></h3>
+        
+        <div id="playCardSection" class="play-card-section hidden">
+          <p id="playCardMessage">Select a card to play</p>
+          <div id="openHiddenCardSection" class="open-hidden-card-section hidden">
+            <p>You must open the hidden card.</p>
+            <button id="openHiddenCardBtn" onclick="openHiddenCard()">Open Hidden Card</button>
+          </div>
+          <button id="nextBtn" onclick="nextPlayer()" disabled>Play Selected</button>
+        </div>
+
+        <div id="playerCards" class="cards-container">
+          <p class="waiting-message">Waiting for game to start...</p>
+        </div>
+      </div>
+
+      <div id="testModeSelector" class="test-mode-selector hidden">
+        <div class="player-buttons">
+          <button class="player-btn" onclick="switchTestPlayer(1)">P1</button>
+          <button class="player-btn" onclick="switchTestPlayer(2)">P2</button>
+          <button class="player-btn" onclick="switchTestPlayer(3)">P3</button>
+          <button class="player-btn" onclick="switchTestPlayer(4)">P4</button>
+          <button class="player-btn" onclick="switchTestPlayer(5)">P5</button>
+          <button class="player-btn" onclick="switchTestPlayer(6)">P6</button>
+        </div>
+      </div>
+
       <div id="allPlayersCards" class="all-players-cards hidden">
-        <h3>All Players' Cards (Test Mode)</h3>
+        <h3>All Players' Hands</h3>
         <div id="allPlayersContainer" class="all-players-container"></div>
       </div>
 
       <div class="game-log">
         <h3>Game Log</h3>
         <div id="gameLog" class="log-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="setupModal" class="setup-modal hidden">
+    <div class="setup-content">
+      <h2>Game Setup</h2>
+      <div class="input-group">
+        <label>Team 1 Name</label>
+        <input type="text" id="setupTeam1" value="Team 1">
+      </div>
+      <div class="input-group">
+        <label>Team 2 Name</label>
+        <input type="text" id="setupTeam2" value="Team 2">
+      </div>
+      <div class="setup-grid">
+        <div class="input-group"><label>Player 1 (Host)</label><input type="text" id="setupP1" value="Player 1"></div>
+        <div class="input-group"><label>Player 2</label><input type="text" id="setupP2" value="Player 2"></div>
+        <div class="input-group"><label>Player 3</label><input type="text" id="setupP3" value="Player 3"></div>
+        <div class="input-group"><label>Player 4</label><input type="text" id="setupP4" value="Player 4"></div>
+        <div class="input-group"><label>Player 5</label><input type="text" id="setupP5" value="Player 5"></div>
+        <div class="input-group"><label>Player 6</label><input type="text" id="setupP6" value="Player 6"></div>
+      </div>
+      <div style="text-align: center;">
+        <button onclick="saveSetup()">Save & Close</button>
       </div>
     </div>
   </div>
