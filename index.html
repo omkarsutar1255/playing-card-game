@@ -12,11 +12,11 @@
     <audio id="snd-winner" src="winner.mp3"></audio>
     <audio id="snd-cheers" src="cheers.mp3"></audio>
 
-    <div class="connection-section">
+    <div id="connectionSection" class="connection-section">
       <h1>6 Player Card Game</h1>
       
       <div class="test-mode-section">
-        <button id="testModeBtn" onclick="startTestMode()" style="background: #ff9800;">🧪 Test Mode</button>
+        <button id="testModeBtn" onclick="startTestMode()" style="background: #ff9800;">🧪 Test Mode (All 6 Players)</button>
       </div>
 
       <div class="host-section">
@@ -32,11 +32,74 @@
       </div>
     </div>
 
+    <div id="hostSetupSection" class="setup-section hidden">
+      <h2>Game Setup</h2>
+      <div class="setup-form">
+        <div class="input-group">
+          <label>Your Name (Host)</label>
+          <input type="text" id="hostNameInput" placeholder="Enter your name">
+        </div>
+        <div class="input-group">
+          <label>Team 1 Name</label>
+          <input type="text" id="team1NameInput" placeholder="e.g. Avengers">
+        </div>
+        <div class="input-group">
+          <label>Team 2 Name</label>
+          <input type="text" id="team2NameInput" placeholder="e.g. Justice League">
+        </div>
+        <button id="createTeamsBtn" onclick="submitHostSetup()" disabled>Create Teams & Enter Lobby</button>
+      </div>
+    </div>
+
+    <div id="clientSetupSection" class="setup-section hidden">
+      <h2>Join Team</h2>
+      <p>Connected to Lobby. Please enter your details.</p>
+      <div class="setup-form">
+        <div class="input-group">
+          <label>Your Name</label>
+          <input type="text" id="playerNameInput" placeholder="Enter your name">
+        </div>
+        <div class="input-group">
+          <label>Select Team</label>
+          <div class="team-select-buttons">
+            <button id="selectTeam1Btn" onclick="selectTeam(1)" class="team-select-btn">Join Team 1</button>
+            <button id="selectTeam2Btn" onclick="selectTeam(2)" class="team-select-btn">Join Team 2</button>
+          </div>
+          <p id="selectedTeamIndicator" style="margin-top:5px; font-weight:bold; color:#667eea;">No team selected</p>
+        </div>
+        <button id="submitJoinBtn" onclick="submitClientJoin()" disabled>Join Lobby</button>
+      </div>
+    </div>
+
+    <div id="lobbySection" class="lobby-section hidden">
+      <h2>Game Lobby</h2>
+      <p>Room ID: <span id="lobbyRoomId" style="font-weight:bold; color:#667eea;">---</span></p>
+      <p id="lobbyStatus">Waiting for players...</p>
+      
+      <div class="lobby-teams">
+        <div class="lobby-team team1">
+          <h3 id="lobbyTeam1Name">Team 1</h3>
+          <ul id="lobbyTeam1List" class="player-list">
+            </ul>
+        </div>
+        <div class="lobby-team team2">
+          <h3 id="lobbyTeam2Name">Team 2</h3>
+          <ul id="lobbyTeam2List" class="player-list">
+            </ul>
+        </div>
+      </div>
+
+      <div id="hostLobbyControls" class="hidden" style="margin-top: 20px; text-align: center;">
+        <button id="lobbyStartBtn" onclick="startGame()" disabled>Start Game (Waiting for 3 vs 3)</button>
+      </div>
+      <div id="clientLobbyMessage" class="hidden" style="margin-top: 20px; text-align: center;">
+        <p>Waiting for host to start the game...</p>
+      </div>
+    </div>
+
     <div id="gameSection" class="game-section hidden">
       <div id="hostControls" class="host-controls hidden">
-        <button class="setup-btn" onclick="openSetupModal()">📝 Setup Names</button>
-        <button id="startGameBtn" onclick="startGame()">Start Game</button>
-        <button id="nextGameButton" class="next-game-btn hidden" onclick="startNextGame()">Next Game ➡</button>
+        <button id="startGameBtn" class="hidden">Start Game</button> <button id="nextGameButton" class="next-game-btn hidden" onclick="startNextGame()">Next Game ➡</button>
       </div>
 
       <div class="game-info">
@@ -114,31 +177,6 @@
       <div class="game-log">
         <h3>Game Log</h3>
         <div id="gameLog" class="log-content"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="setupModal" class="setup-modal hidden">
-    <div class="setup-content">
-      <h2>Game Setup</h2>
-      <div class="input-group">
-        <label>Team 1 Name</label>
-        <input type="text" id="setupTeam1" value="Team 1">
-      </div>
-      <div class="input-group">
-        <label>Team 2 Name</label>
-        <input type="text" id="setupTeam2" value="Team 2">
-      </div>
-      <div class="setup-grid">
-        <div class="input-group"><label>Player 1 (Host)</label><input type="text" id="setupP1" value="Player 1"></div>
-        <div class="input-group"><label>Player 2</label><input type="text" id="setupP2" value="Player 2"></div>
-        <div class="input-group"><label>Player 3</label><input type="text" id="setupP3" value="Player 3"></div>
-        <div class="input-group"><label>Player 4</label><input type="text" id="setupP4" value="Player 4"></div>
-        <div class="input-group"><label>Player 5</label><input type="text" id="setupP5" value="Player 5"></div>
-        <div class="input-group"><label>Player 6</label><input type="text" id="setupP6" value="Player 6"></div>
-      </div>
-      <div style="text-align: center;">
-        <button onclick="saveSetup()">Save & Close</button>
       </div>
     </div>
   </div>
