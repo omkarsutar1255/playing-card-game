@@ -105,7 +105,7 @@ function saveSetup() {
   }
 }
 
-// ==================== P2P Logic (Abbreviated common parts) ====================
+// ==================== P2P Logic ====================
 function createHost() {
   isHost = true;
   playerPosition = 1;
@@ -304,12 +304,12 @@ function calculateGamePoints(winningTeam) {
   if (gameState.team1Points >= 32) { gameState.team1Points -= 32; triggered32 = true; }
   else if (gameState.team2Points >= 32) { gameState.team2Points -= 32; triggered32 = true; }
   
-  if(triggered32) showWinnerPopup(); // Play sound handled in showWinnerPopup
+  if(triggered32) showWinnerPopup(); 
   gameState.nextDistributor = determineNextDistributor(winningTeam, triggered32);
 }
 
 function showWinnerPopup() {
-    playSound('winner'); // Play Winner Winner sound
+    playSound('winner'); 
     const popup = document.getElementById('winnerPopup');
     popup.classList.remove('hidden');
     setTimeout(() => popup.classList.add('hidden'), 5000); 
@@ -322,7 +322,6 @@ function endGame(winningTeam) {
   
   calculateGamePoints(winningTeam);
   
-  // Play Cheers sound for the team
   setTimeout(() => playSound('cheers'), 500);
 
   updateGameDisplay();
@@ -335,7 +334,6 @@ function endGame(winningTeam) {
     if (gameState.nextDistributor && (Math.abs(gameState.nextDistributor - gameState.currentDistributor) > 1)) {
          broadcastToAll({ type: 'showWinnerPopup' });
     }
-    // Broadcast end game sound event
     broadcastToAll({ type: 'playEndSound' });
   }
 }
@@ -444,11 +442,11 @@ function updateActionButtons(viewingPlayer) {
 
 function updateGameDisplay() {
   const conf = gameState.config;
+  
   // Update Team Info
   document.getElementById('team1NameDisplay').textContent = conf.team1Name;
   document.getElementById('team2NameDisplay').textContent = conf.team2Name;
   
-  // Update roster list
   const t1Names = TEAM1_PLAYERS.map(id => conf.playerNames[id]).join(', ');
   const t2Names = TEAM2_PLAYERS.map(id => conf.playerNames[id]).join(', ');
   document.getElementById('team1PlayersDisplay').textContent = t1Names;
@@ -481,7 +479,6 @@ function updateGameDisplay() {
   }
   document.getElementById('currentRound').textContent = gameState.currentRound;
   
-  // Winner Indicators
   if (gameState.gameCompleted && gameState.gameWinnerTeam) {
       if (gameState.gameWinnerTeam === 1) document.getElementById('team1Winner').classList.remove('hidden');
       else document.getElementById('team2Winner').classList.remove('hidden');
@@ -495,7 +492,6 @@ function updateGameDisplay() {
       document.getElementById('startGameBtn').classList.add('hidden');
   }
 
-  // Round State
   if (gameState.gameStarted && gameState.roundState && !gameState.gameCompleted) {
     const rs = gameState.roundState;
     if (rs.currentTurn) {
@@ -526,7 +522,6 @@ function updateGameDisplay() {
       document.getElementById('currentTurnInfo').classList.add('hidden');
   }
   
-  // Hand Display
   const targetP = isTestMode ? currentTestPlayer : playerPosition;
   if (gameState.hands[targetP]) displayPlayerCards(gameState.hands[targetP]);
   
@@ -589,8 +584,6 @@ function displayRoundCards() {
   document.getElementById('roundCardsSection').classList.remove('hidden');
   container.innerHTML = '';
   
-  // Sort cards by played order logic is complex, simpler to show who played what
-  // We will iterate 1-6 to show cards in seat order (P1->P6)
   for (let i = 1; i <= TOTAL_PLAYERS; i++) {
     if (rs.cardsPlayed[i]) {
         const card = rs.cardsPlayed[i];
@@ -605,8 +598,6 @@ function displayRoundCards() {
     }
   }
 }
-
-// ... (Rest: calculateRoundWinner, displayHiddenCard, log, test mode functions unchanged except using getName())
 
 function calculateRoundWinner() {
   const rs = gameState.roundState;
@@ -655,7 +646,8 @@ window.nextPlayer = nextPlayer;
 window.openHiddenCard = openHiddenCard;
 window.openSetupModal = openSetupModal;
 window.saveSetup = saveSetup;
-// ... Helpers for canPlayCard/canOpenHiddenCard/saveSelectedCard same as before
+window.startTestMode = startTestMode; // Ensure this is exported
+
 function canPlayCard(card, playerId) {
   const rs = gameState.roundState;
   const hand = gameState.hands[playerId];
@@ -681,7 +673,7 @@ function saveSelectedCard(playerId, card, cardIndex) {
   document.getElementById('nextBtn').disabled = true;
   
   if (Object.keys(rs.cardsPlayed).length === TOTAL_PLAYERS) {
-    rs.roundComplete = true; rs.currentTurn = null; setTimeout(() => completeRound(), 1000); // Slower delay to see cards
+    rs.roundComplete = true; rs.currentTurn = null; setTimeout(() => completeRound(), 1000); 
   } else {
     rs.currentTurn = (playerId % TOTAL_PLAYERS) + 1;
     if (isTestMode) switchTestPlayer(rs.currentTurn);
@@ -710,8 +702,51 @@ function openHiddenCard() {
   updateGameDisplay();
   if(!isTestMode) broadcastToAll({type:'gameState', state: gameState});
 }
-// Test Mode Helpers
-function switchTestPlayer(n) { if(!isTestMode) return; currentTestPlayer=n; playerPosition=n; updateGameDisplay(); document.getElementById('nextBtn').disabled=true;}
+
+// Fix startTestMode to not rely on deleted element
+function startTestMode() {
+  log('Starting Test Mode...');
+  isTestMode = true;
+  isHost = true;
+  playerPosition = 1;
+  currentTestPlayer = 1;
+  gameState.players = [1, 2, 3, 4, 5, 6];
+  
+  document.querySelector('.connection-section').style.display = 'none';
+  document.getElementById('gameSection').classList.remove('hidden');
+  document.getElementById('hostControls').classList.remove('hidden');
+  document.getElementById('testModeSelector').classList.remove('hidden');
+  document.getElementById('allPlayersCards').classList.remove('hidden');
+  
+  // Set player name in header safely
+  document.getElementById('playerPosition').textContent = ' - Player 1 (Test Host)';
+  
+  updateTestPlayerButtons();
+  log('Test Mode activated. Use "Setup Names" or "Start Game".');
+}
+
+function switchTestPlayer(n) { 
+    if(!isTestMode) return; 
+    currentTestPlayer=n; 
+    playerPosition=n; 
+    
+    // Update header name
+    const pName = gameState.config.playerNames[n];
+    document.getElementById('playerPosition').textContent = ` - ${pName} (Test Mode)`;
+    
+    updateGameDisplay(); 
+    updateTestPlayerButtons();
+    document.getElementById('nextBtn').disabled=true;
+}
+
+function updateTestPlayerButtons() {
+  const buttons = document.querySelectorAll('.player-btn');
+  buttons.forEach((btn, index) => {
+    if (index + 1 === currentTestPlayer) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+}
+
 function displayAllPlayersCards() {
     const c = document.getElementById('allPlayersContainer'); c.innerHTML='';
     for(let i=1; i<=6; i++) {
@@ -720,7 +755,7 @@ function displayAllPlayersCards() {
         d.innerHTML = `<h4>${getName(i)}</h4>`;
         const cc = document.createElement('div'); cc.className='cards-container';
         hand.forEach(card => {
-            const el = createCardElement(card, 0, i); el.style.pointerEvents='none'; // Visual only
+            const el = createCardElement(card, 0, i); el.style.pointerEvents='none'; 
             cc.appendChild(el);
         });
         d.appendChild(cc); c.appendChild(d);
