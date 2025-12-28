@@ -8,7 +8,6 @@
 </head>
 <body>
   <div class="container">
-    <!-- Connection Section -->
     <div class="connection-section">
       <h1>6 Player Card Game</h1>
       
@@ -32,20 +31,20 @@
       </div>
     </div>
 
-    <!-- Game Section (hidden until connected) -->
     <div id="gameSection" class="game-section hidden">
-      <!-- Game Info -->
       <div class="game-info">
         <div class="teams">
           <div class="team team1">
             <h3>Team 1 (P1, P3, P5)</h3>
             <p>Points: <span id="team1Points">0</span></p>
             <p>Rounds Won: <span id="team1Rounds">0</span></p>
+            <p id="team1Target" class="target-indicator hidden">Target: 5</p>
           </div>
           <div class="team team2">
             <h3>Team 2 (P2, P4, P6)</h3>
             <p>Points: <span id="team2Points">0</span></p>
             <p>Rounds Won: <span id="team2Rounds">0</span></p>
+            <p id="team2Target" class="target-indicator hidden">Target: 4</p>
           </div>
         </div>
         <div class="game-meta">
@@ -62,15 +61,14 @@
         </div>
       </div>
 
-      <!-- Host Controls -->
       <div id="hostControls" class="host-controls hidden">
-        <button onclick="startGame()">Start Game</button>
+        <button id="startGameBtn" onclick="startGame()">Start Game</button>
+        <button id="nextGameButton" class="next-game-btn hidden" onclick="startNextGame()">Next Game ➡</button>
         <div id="roundControls" class="round-controls hidden">
           <p class="round-controls-note">Rounds complete automatically when all players select their cards.</p>
         </div>
       </div>
 
-      <!-- Test Mode Player Selector -->
       <div id="testModeSelector" class="test-mode-selector hidden">
         <h3>Switch Player View</h3>
         <div class="player-buttons">
@@ -84,7 +82,6 @@
         <p>Currently viewing: <strong id="currentTestPlayer">Player 1</strong></p>
       </div>
 
-      <!-- Player Cards -->
       <div class="player-cards-section">
         <h3 id="playerCardsTitle">Your Cards</h3>
         <div id="playCardSection" class="play-card-section hidden">
@@ -101,19 +98,16 @@
         </div>
       </div>
 
-      <!-- Cards Played This Round -->
       <div id="roundCardsSection" class="round-cards-section hidden">
         <h3>Cards Played This Round</h3>
         <div id="roundCards" class="round-cards-container"></div>
       </div>
 
-      <!-- All Players Cards (Test Mode) -->
       <div id="allPlayersCards" class="all-players-cards hidden">
         <h3>All Players' Cards (Test Mode)</h3>
         <div id="allPlayersContainer" class="all-players-container"></div>
       </div>
 
-      <!-- Game Log -->
       <div class="game-log">
         <h3>Game Log</h3>
         <div id="gameLog" class="log-content"></div>

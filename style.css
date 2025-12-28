@@ -75,6 +75,20 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* New Button Style */
+.next-game-btn {
+  background: #4caf50; /* Green */
+  font-weight: bold;
+  padding: 15px 30px;
+  font-size: 18px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.next-game-btn:hover {
+  background: #43a047;
+  transform: translateY(-2px);
+}
+
 input[type="text"] {
   padding: 12px;
   border: 2px solid #ddd;
@@ -141,6 +155,15 @@ input[type="text"]:focus {
   margin: 5px 0;
   font-size: 18px;
   font-weight: bold;
+}
+
+.target-indicator {
+  margin-top: 8px;
+  font-size: 14px;
+  background: rgba(255,255,255,0.6);
+  padding: 4px 8px;
+  border-radius: 12px;
+  display: inline-block;
 }
 
 .game-meta {
