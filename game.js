@@ -20,12 +20,9 @@ let gameState = {
   config: {
     team1Name: "Team 1",
     team2Name: "Team 2",
-    playerNames: {} // Map ID (1-6) -> Name
+    playerNames: {} 
   },
-  lobby: {
-    team1Slots: [], // Array of objects {id, name}
-    team2Slots: [] 
-  },
+  lobby: { team1Slots: [], team2Slots: [] },
   deck: [],
   hands: {}, 
   team1Points: 0,
@@ -38,7 +35,7 @@ let gameState = {
   gameStarted: false,
   gameCompleted: false, 
   gameWinnerTeam: null, 
-  players: [], // Active Player IDs
+  players: [], 
   hiddenCard: null, 
   superSuit: null, 
   hiddenCardOpened: false, 
@@ -62,13 +59,10 @@ const RANKS = ['A', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const CARD_RANK = { '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, '10': 8, 'J': 9, 'Q': 10, 'K': 11, 'A': 12 };
 
 document.addEventListener('DOMContentLoaded', () => { 
-  // Input Listeners to enable buttons
   const inputs = ['hostNameInput', 'team1NameInput', 'team2NameInput'];
-  inputs.forEach(id => {
-      document.getElementById(id).addEventListener('input', checkHostInputs);
-  });
-  
+  inputs.forEach(id => document.getElementById(id).addEventListener('input', checkHostInputs));
   document.getElementById('playerNameInput').addEventListener('input', checkClientInputs);
+  log('Ready to connect.');
 });
 
 function checkHostInputs() {
@@ -83,7 +77,6 @@ function checkClientInputs() {
     document.getElementById('submitJoinBtn').disabled = !(p && mySelectedTeam);
 }
 
-// Audio Helper
 function playSound(type) {
   try {
     let audioId = '';
@@ -95,31 +88,21 @@ function playSound(type) {
   } catch (e) { console.log(e); }
 }
 
-// ==================== HOST SETUP FLOW ====================
+// ==================== HOST & CLIENT CONNECTION ====================
 
 function createHost() {
   isHost = true;
   peer = new Peer(undefined, { debug: 1 });
-  
   peer.on('open', id => {
     document.getElementById('roomId').textContent = id;
     document.getElementById('hostStatus').textContent = 'Connection Opened. Setup Game...';
-    
-    // Switch to Host Setup UI
     document.getElementById('connectionSection').classList.add('hidden');
     document.getElementById('hostSetupSection').classList.remove('hidden');
   });
-
   peer.on('connection', conn => {
-    // New player connecting to lobby
     conn.on('open', () => {
       connections.push({ conn: conn, peerId: conn.peer, playerId: null });
-      // Send current config/lobby state so they can choose team
-      sendToPlayer(conn, { 
-        type: 'gameConfig', 
-        config: gameState.config,
-        lobby: gameState.lobby
-      });
+      sendToPlayer(conn, { type: 'gameConfig', config: gameState.config, lobby: gameState.lobby });
     });
     conn.on('data', data => handleHostMessage(data, conn));
     conn.on('close', () => removeConnection(conn));
@@ -128,51 +111,31 @@ function createHost() {
 
 function submitHostSetup() {
     const hName = document.getElementById('hostNameInput').value.trim();
-    const t1Name = document.getElementById('team1NameInput').value.trim();
-    const t2Name = document.getElementById('team2NameInput').value.trim();
-    
-    gameState.config.team1Name = t1Name;
-    gameState.config.team2Name = t2Name;
-    
-    // Host is always Player 1
+    gameState.config.team1Name = document.getElementById('team1NameInput').value.trim();
+    gameState.config.team2Name = document.getElementById('team2NameInput').value.trim();
     playerPosition = 1;
     gameState.config.playerNames[1] = hName;
     gameState.players = [1];
-    
-    // Add Host to Lobby Team 1
     gameState.lobby.team1Slots.push({ id: 1, name: hName });
-    
-    // Switch to Lobby UI
     document.getElementById('hostSetupSection').classList.add('hidden');
     document.getElementById('lobbySection').classList.remove('hidden');
     document.getElementById('hostLobbyControls').classList.remove('hidden');
     document.getElementById('lobbyRoomId').textContent = document.getElementById('roomId').textContent;
-    
     updateLobbyUI();
 }
 
-// ==================== CLIENT JOIN FLOW ====================
-
 function joinHost() {
-  const roomId = document.getElementById('joinId').value.trim(); 
-  if (!roomId) return;
-  
+  const roomId = document.getElementById('joinId').value.trim(); if (!roomId) return;
   isHost = false; 
   peer = new Peer(undefined, { debug: 1 });
-  
   peer.on('open', () => {
     hostConnection = peer.connect(roomId);
-    
     hostConnection.on('open', () => {
       document.getElementById('clientStatus').textContent = 'Connected. Getting info...';
       document.getElementById('clientStatus').style.color = 'green';
     });
-    
     hostConnection.on('data', data => handleClientMessage(data));
-    hostConnection.on('close', () => {
-      alert("Host disconnected");
-      location.reload();
-    });
+    hostConnection.on('close', () => { alert("Host disconnected"); location.reload(); });
   });
 }
 
@@ -180,10 +143,8 @@ function selectTeam(teamNum) {
     mySelectedTeam = teamNum;
     const t1Name = document.getElementById('selectTeam1Btn').innerText;
     const t2Name = document.getElementById('selectTeam2Btn').innerText;
-    
     document.getElementById('selectTeam1Btn').classList.remove('selected');
     document.getElementById('selectTeam2Btn').classList.remove('selected');
-    
     if(teamNum === 1) {
         document.getElementById('selectTeam1Btn').classList.add('selected');
         document.getElementById('selectedTeamIndicator').textContent = "Selected: " + t1Name;
@@ -196,49 +157,25 @@ function selectTeam(teamNum) {
 
 function submitClientJoin() {
     const pName = document.getElementById('playerNameInput').value.trim();
-    
-    // Send Join Request
-    hostConnection.send(JSON.stringify({
-        type: 'joinRequest',
-        name: pName,
-        team: mySelectedTeam
-    }));
-    
+    hostConnection.send(JSON.stringify({ type: 'joinRequest', name: pName, team: mySelectedTeam }));
     document.getElementById('submitJoinBtn').disabled = true;
     document.getElementById('submitJoinBtn').textContent = "Joining...";
 }
 
-// ==================== LOBBY LOGIC ====================
-
 function updateLobbyUI() {
     document.getElementById('lobbyTeam1Name').textContent = gameState.config.team1Name;
     document.getElementById('lobbyTeam2Name').textContent = gameState.config.team2Name;
+    const l1 = document.getElementById('lobbyTeam1List'); l1.innerHTML = '';
+    const l2 = document.getElementById('lobbyTeam2List'); l2.innerHTML = '';
+    gameState.lobby.team1Slots.forEach(p => l1.innerHTML += `<li>${p.name} (P${p.id})</li>`);
+    gameState.lobby.team2Slots.forEach(p => l2.innerHTML += `<li>${p.name} (P${p.id})</li>`);
     
-    const l1 = document.getElementById('lobbyTeam1List');
-    const l2 = document.getElementById('lobbyTeam2List');
-    l1.innerHTML = ''; l2.innerHTML = '';
-    
-    gameState.lobby.team1Slots.forEach(p => {
-        l1.innerHTML += `<li>${p.name} (P${p.id})</li>`;
-    });
-    gameState.lobby.team2Slots.forEach(p => {
-        l2.innerHTML += `<li>${p.name} (P${p.id})</li>`;
-    });
-    
-    // Host Logic: Enable Start if 3 vs 3
     if(isHost) {
-        const t1Count = gameState.lobby.team1Slots.length;
-        const t2Count = gameState.lobby.team2Slots.length;
+        const full = (gameState.lobby.team1Slots.length === 3 && gameState.lobby.team2Slots.length === 3);
         const btn = document.getElementById('lobbyStartBtn');
-        if (t1Count === 3 && t2Count === 3) {
-            btn.disabled = false;
-            btn.textContent = "Start Game";
-            btn.style.background = "#4caf50";
-        } else {
-            btn.disabled = true;
-            btn.textContent = `Waiting (Team 1: ${t1Count}/3, Team 2: ${t2Count}/3)`;
-            btn.style.background = "#ccc";
-        }
+        btn.disabled = !full;
+        btn.textContent = full ? "Start Game" : `Waiting (${gameState.lobby.team1Slots.length}/3 vs ${gameState.lobby.team2Slots.length}/3)`;
+        btn.style.background = full ? "#4caf50" : "#ccc";
     }
 }
 
@@ -247,58 +184,32 @@ function updateLobbyUI() {
 function handleHostMessage(data, conn) {
     try {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
-        
         if (msg.type === 'joinRequest') {
-            // Assign Player ID based on Team
             let newId = null;
             if (msg.team === 1) {
-                if (gameState.lobby.team1Slots.length >= 3) return; // Full
-                // Available slots for T1: 3, 5 (Host is 1)
+                if (gameState.lobby.team1Slots.length >= 3) return;
                 const used = gameState.lobby.team1Slots.map(x => x.id);
-                if (!used.includes(3)) newId = 3;
-                else if (!used.includes(5)) newId = 5;
+                if (!used.includes(3)) newId = 3; else if (!used.includes(5)) newId = 5;
             } else {
-                if (gameState.lobby.team2Slots.length >= 3) return; // Full
-                // Available slots for T2: 2, 4, 6
+                if (gameState.lobby.team2Slots.length >= 3) return;
                 const used = gameState.lobby.team2Slots.map(x => x.id);
-                if (!used.includes(2)) newId = 2;
-                else if (!used.includes(4)) newId = 4;
-                else if (!used.includes(6)) newId = 6;
+                if (!used.includes(2)) newId = 2; else if (!used.includes(4)) newId = 4; else if (!used.includes(6)) newId = 6;
             }
-            
             if (newId) {
-                // Register Player
                 gameState.players.push(newId);
                 gameState.config.playerNames[newId] = msg.name;
-                
-                // Update Connection Metadata
                 const connIdx = connections.findIndex(c => c.conn === conn);
                 if(connIdx !== -1) connections[connIdx].playerId = newId;
                 
-                // Add to Lobby
                 if(msg.team === 1) gameState.lobby.team1Slots.push({ id: newId, name: msg.name });
                 else gameState.lobby.team2Slots.push({ id: newId, name: msg.name });
                 
-                // Send Success to Player
-                sendToPlayer(conn, {
-                   type: 'joinSuccess',
-                   playerId: newId,
-                   config: gameState.config,
-                   lobby: gameState.lobby
-                });
-                
-                // Broadcast update to everyone
-                broadcastToAll({
-                    type: 'lobbyUpdate',
-                    lobby: gameState.lobby,
-                    config: gameState.config
-                });
-                
+                sendToPlayer(conn, { type: 'joinSuccess', playerId: newId, config: gameState.config, lobby: gameState.lobby });
+                broadcastToAll({ type: 'lobbyUpdate', lobby: gameState.lobby, config: gameState.config });
                 updateLobbyUI();
             }
         } 
         else if (msg.type === 'playerAction') {
-            // In-Game Actions
              if(msg.action.type === 'selectCard' && !gameState.gameCompleted) {
                const hand = gameState.hands[msg.playerId];
                const actualIndex = hand.findIndex(c => c.id === msg.action.card.id);
@@ -313,28 +224,21 @@ function handleHostMessage(data, conn) {
 function handleClientMessage(data) {
     try {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
-        
         if (msg.type === 'gameConfig') {
-            // Received Team Names, show Join Form
             document.getElementById('connectionSection').classList.add('hidden');
             document.getElementById('clientSetupSection').classList.remove('hidden');
-            
             gameState.config = msg.config;
             gameState.lobby = msg.lobby;
-            
             document.getElementById('selectTeam1Btn').innerText = `Join ${msg.config.team1Name}`;
             document.getElementById('selectTeam2Btn').innerText = `Join ${msg.config.team2Name}`;
         }
         else if (msg.type === 'joinSuccess') {
-            // Joined successfully, go to Lobby
             playerPosition = msg.playerId;
             gameState.config = msg.config;
             gameState.lobby = msg.lobby;
-            
             document.getElementById('clientSetupSection').classList.add('hidden');
             document.getElementById('lobbySection').classList.remove('hidden');
             document.getElementById('clientLobbyMessage').classList.remove('hidden');
-            
             updateLobbyUI();
         }
         else if (msg.type === 'lobbyUpdate') {
@@ -343,12 +247,9 @@ function handleClientMessage(data) {
             updateLobbyUI();
         }
         else if (msg.type === 'gameStart') {
-             // Game Starting!
              document.getElementById('lobbySection').classList.add('hidden');
              document.getElementById('gameSection').classList.remove('hidden');
              document.getElementById('playerPosition').textContent = ` - ${gameState.config.playerNames[playerPosition]}`;
-             
-             // Sync State
              gameState = msg.state;
              updateGameDisplay();
         }
@@ -365,18 +266,13 @@ function sendToPlayer(conn, data) { if (conn && conn.open) conn.send(JSON.string
 function broadcastToAll(data) { connections.forEach(({ conn }) => sendToPlayer(conn, data)); }
 function removeConnection(conn) {
     const index = connections.findIndex(c => c.conn === conn);
-    if (index !== -1) {
-        // We could remove them from lobby here if we wanted robust handling
-        connections.splice(index, 1);
-    }
+    if (index !== -1) connections.splice(index, 1);
 }
 
-// ==================== GAME LOGIC (Standard) ====================
+// ==================== GAME LOGIC ====================
 
 function startGame() {
   if (!isHost && !isTestMode) return;
-  // If in Lobby mode (not test), we don't need to check connection count again manually, button is disabled otherwise
-  
   if (!gameState.currentDistributor) setRandomDistributor();
   playSound('distribute');
   gameState.deck = createDeck();
@@ -388,7 +284,6 @@ function startGame() {
   gameState.team1Rounds = 0; gameState.team2Rounds = 0;
   gameState.superSuit = null; gameState.hiddenCardOpened = false; gameState.hiddenCardOpener = null;
   
-  // Clean up UI for game start
   document.getElementById('lobbySection').classList.add('hidden');
   document.getElementById('gameSection').classList.remove('hidden');
   document.getElementById('startGameBtn').classList.add('hidden');
@@ -408,13 +303,8 @@ function startGame() {
   gameState.roundState = { startPlayer: firstPlayer, currentTurn: firstPlayer, cardsPlayed: {}, baseSuit: null, roundComplete: false, justOpenedHidden: false, hiddenOpenedInRound: false, roundWinnerInfo: null };
   updateGameDisplay();
   
-  if (!isTestMode) {
-      // Broadcast Game Start to move clients from Lobby to Game
-      broadcastToAll({ type: 'gameStart', state: gameState });
-  } else {
-      // Test mode switching
-      switchTestPlayer(firstPlayer);
-  }
+  if (!isTestMode) broadcastToAll({ type: 'gameStart', state: gameState });
+  else switchTestPlayer(firstPlayer);
   
   document.getElementById('roundControls').classList.remove('hidden');
 }
@@ -506,7 +396,7 @@ function endGame(winningTeam) {
   calculateGamePoints(winningTeam);
   setTimeout(() => playSound('cheers'), 500);
   updateGameDisplay();
-  if (isHost) { document.getElementById('nextGameButton').classList.remove('hidden'); document.getElementById('startGameBtn').classList.add('hidden'); }
+  if (isHost) { document.getElementById('nextGameButton').classList.remove('hidden'); }
   if (!isTestMode) {
     broadcastToAll({ type: 'gameState', state: gameState });
     if (gameState.nextDistributor && (Math.abs(gameState.nextDistributor - gameState.currentDistributor) > 1)) broadcastToAll({ type: 'showWinnerPopup' });

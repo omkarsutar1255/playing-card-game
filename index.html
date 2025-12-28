@@ -17,7 +17,10 @@
       
       <div class="test-mode-section">
         <button id="testModeBtn" onclick="startTestMode()" style="background: #ff9800;">🧪 Test Mode (All 6 Players)</button>
+        <p class="test-mode-hint">Use Test Mode to check rules alone. For multiplayer, create a Host.</p>
       </div>
+
+      <hr style="margin: 20px 0; border: 1px solid #ddd;">
 
       <div class="host-section">
         <button id="createHostBtn" onclick="createHost()">Create Host</button>
@@ -79,13 +82,11 @@
       <div class="lobby-teams">
         <div class="lobby-team team1">
           <h3 id="lobbyTeam1Name">Team 1</h3>
-          <ul id="lobbyTeam1List" class="player-list">
-            </ul>
+          <ul id="lobbyTeam1List" class="player-list"></ul>
         </div>
         <div class="lobby-team team2">
           <h3 id="lobbyTeam2Name">Team 2</h3>
-          <ul id="lobbyTeam2List" class="player-list">
-            </ul>
+          <ul id="lobbyTeam2List" class="player-list"></ul>
         </div>
       </div>
 
@@ -99,7 +100,8 @@
 
     <div id="gameSection" class="game-section hidden">
       <div id="hostControls" class="host-controls hidden">
-        <button id="startGameBtn" class="hidden">Start Game</button> <button id="nextGameButton" class="next-game-btn hidden" onclick="startNextGame()">Next Game ➡</button>
+        <button id="startGameBtn" class="hidden">Start Game</button>
+        <button id="nextGameButton" class="next-game-btn hidden" onclick="startNextGame()">Next Game ➡</button>
       </div>
 
       <div class="game-info">
