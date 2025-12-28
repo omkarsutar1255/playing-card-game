@@ -39,16 +39,17 @@ let gameState = {
   hiddenCard: null, 
   superSuit: null, 
   hiddenCardOpened: false, 
-  hiddenCardOpener: null, // NEW: Track who opened it
+  hiddenCardOpener: null, 
   firstMoverTeam: null, 
   roundState: {
-    startPlayer: null, // NEW: Track who started the round
+    startPlayer: null, 
     currentTurn: null,
     cardsPlayed: {}, 
     baseSuit: null, 
     roundComplete: false,
-    justOpenedHidden: false, // NEW: Flag for mandatory move
-    roundWinnerInfo: null // NEW: Store for popup
+    justOpenedHidden: false, // Flag for immediate mandatory move
+    hiddenOpenedInRound: false, // NEW: Specific flag for calculation logic
+    roundWinnerInfo: null 
   }
 };
 
@@ -90,7 +91,7 @@ function saveSetup() {
   if(!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
 }
 
-// P2P Logic (Standard)
+// P2P Logic
 function createHost() {
   isHost = true; playerPosition = 1;
   peer = new Peer(undefined, { debug: 1 });
@@ -207,7 +208,7 @@ function startGame() {
     gameState.hands[firstPlayer].splice(hiddenIndex, 1);
   }
 
-  gameState.roundState = { startPlayer: firstPlayer, currentTurn: firstPlayer, cardsPlayed: {}, baseSuit: null, roundComplete: false, justOpenedHidden: false, roundWinnerInfo: null };
+  gameState.roundState = { startPlayer: firstPlayer, currentTurn: firstPlayer, cardsPlayed: {}, baseSuit: null, roundComplete: false, justOpenedHidden: false, hiddenOpenedInRound: false, roundWinnerInfo: null };
   updateGameDisplay();
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
   document.getElementById('roundControls').classList.remove('hidden');
@@ -277,104 +278,87 @@ function endGame(winningTeam) {
   }
 }
 
-// === NEW WINNER LOGIC ===
+// === IMPROVED WINNER LOGIC ===
 function calculateRoundWinner() {
   const rs = gameState.roundState;
   const cardsPlayed = rs.cardsPlayed;
   
-  // Reconstruct Sequence based on startPlayer
-  let playerSequence = [];
+  // 1. Reconstruct sequence: StartPlayer -> Next -> Next...
+  let playSequence = [];
   let p = rs.startPlayer;
   for(let i=0; i<TOTAL_PLAYERS; i++) {
-      if(cardsPlayed[p]) playerSequence.push(p);
+      if(cardsPlayed[p]) {
+          playSequence.push({
+              id: p,
+              card: cardsPlayed[p],
+              sequenceIndex: i
+          });
+      }
       p = (p % TOTAL_PLAYERS) + 1;
   }
 
-  let currentWinner = playerSequence[0];
-  let isTrumpActive = false; // Becomes true from the player who opened hidden card onwards
-
-  // Iterate to find winner
-  for (let i = 1; i < playerSequence.length; i++) {
-      const challengerId = playerSequence[i];
-      const winningCard = cardsPlayed[currentWinner];
-      const challengerCard = cardsPlayed[challengerId];
-      
-      // Determine if Super Suit concept is active for these players
-      if (gameState.hiddenCardOpened) {
-          if (currentWinner === gameState.hiddenCardOpener) isTrumpActive = true; 
-          // Note: Logic needs to track if Trump became active *during* the sequence
-          // Simpler: Check if the specific card was played AFTER or BY opener
-          // Since we iterate in order, we can maintain a flag.
-      }
-      
-      // Check if Challenger activates Trump
-      let challengerIsTrump = false;
-      if (gameState.hiddenCardOpened && challengerCard.suit === gameState.superSuit) {
-          // If Base Suit IS Super Suit, it's always "Trump" (just Base)
-          if (gameState.superSuit === rs.baseSuit) {
-              challengerIsTrump = true;
-          } else {
-              // Otherwise, only Trump if played by/after Opener
-              // We need to know if we passed opener in sequence. 
-              // We can check if `challengerId` index >= opener index in `playerSequence`
-              const openerIndex = playerSequence.indexOf(gameState.hiddenCardOpener);
-              if (openerIndex !== -1 && i >= openerIndex) {
-                  challengerIsTrump = true;
-              }
-          }
-      }
-
-      let winnerIsTrump = false;
-      if (gameState.hiddenCardOpened && winningCard.suit === gameState.superSuit) {
-          if (gameState.superSuit === rs.baseSuit) {
-              winnerIsTrump = true;
-          } else {
-             const openerIndex = playerSequence.indexOf(gameState.hiddenCardOpener);
-             const winnerIndex = playerSequence.indexOf(currentWinner);
-             if (openerIndex !== -1 && winnerIndex >= openerIndex) {
-                 winnerIsTrump = true;
-             }
-          }
-      }
-
-      // Comparison Logic
-      if (challengerIsTrump && !winnerIsTrump) {
-          currentWinner = challengerId;
-      } else if (challengerIsTrump && winnerIsTrump) {
-          if (CARD_RANK[challengerCard.rank] > CARD_RANK[winningCard.rank]) currentWinner = challengerId;
-      } else if (!challengerIsTrump && !winnerIsTrump) {
-          if (challengerCard.suit === rs.baseSuit && winningCard.suit !== rs.baseSuit) {
-              currentWinner = challengerId;
-          } else if (challengerCard.suit === rs.baseSuit && winningCard.suit === rs.baseSuit) {
-              if (CARD_RANK[challengerCard.rank] > CARD_RANK[winningCard.rank]) currentWinner = challengerId;
+  // 2. Identify Valid Super Suit Cards
+  let validSuperCards = [];
+  
+  if (gameState.hiddenCardOpened) {
+      if (!rs.hiddenOpenedInRound) {
+          // Case A: Opened in previous round. All matching cards are valid.
+          validSuperCards = playSequence.filter(pObj => pObj.card.suit === gameState.superSuit);
+      } else {
+          // Case B: Opened THIS round. Only valid if played AFTER (or by) opener.
+          const openerId = gameState.hiddenCardOpener;
+          const openerObj = playSequence.find(pObj => pObj.id === openerId);
+          
+          if (openerObj) {
+              const openerIndex = openerObj.sequenceIndex;
+              validSuperCards = playSequence.filter(pObj => {
+                  return pObj.card.suit === gameState.superSuit && pObj.sequenceIndex >= openerIndex;
+              });
           }
       }
   }
-  return currentWinner;
+
+  // 3. Determine Winner
+  // Priority 1: Highest Rank Valid Super Suit Card
+  if (validSuperCards.length > 0) {
+      // Sort descending by rank
+      validSuperCards.sort((a,b) => CARD_RANK[b.card.rank] - CARD_RANK[a.card.rank]);
+      return validSuperCards[0].id;
+  }
+  
+  // Priority 2: Highest Rank Base Suit Card
+  // Note: Base suit is defined by startPlayer, so playSequence[0] is always base suit (unless null)
+  let baseSuitCards = playSequence.filter(pObj => pObj.card.suit === rs.baseSuit);
+  
+  if (baseSuitCards.length > 0) {
+      baseSuitCards.sort((a,b) => CARD_RANK[b.card.rank] - CARD_RANK[a.card.rank]);
+      return baseSuitCards[0].id;
+  }
+
+  // Fallback (Should typically not happen in valid game)
+  return rs.startPlayer;
 }
 
 // 5 Sec Delay & Popup
 function completeRound() {
   const winner = calculateRoundWinner();
   const winnerTeam = TEAM1_PLAYERS.includes(winner) ? 1 : 2;
-  const winnerCard = gameState.roundState.cardsPlayed[winner];
   
-  // Clean State for Next Round
   updateRoundsWon(winnerTeam);
   gameState.roundState.cardsPlayed = {};
   gameState.roundState.baseSuit = null;
   gameState.roundState.roundComplete = false;
-  gameState.roundState.roundWinnerInfo = null; // Clear info
-  gameState.roundState.justOpenedHidden = false; // Reset flag
+  gameState.roundState.roundWinnerInfo = null;
+  gameState.roundState.justOpenedHidden = false;
+  gameState.roundState.hiddenOpenedInRound = false; // Reset round flag
   
-  // Hide popup
   document.getElementById('roundResultPopup').classList.add('hidden');
 
   if (checkGameWinner()) return;
   if (gameState.currentRound >= ROUNDS_PER_GAME) return;
   
   gameState.currentRound++;
-  gameState.roundState.startPlayer = winner; // Winner starts next round
+  gameState.roundState.startPlayer = winner;
   gameState.roundState.currentTurn = winner;
   
   if (isTestMode) switchTestPlayer(winner);
@@ -507,12 +491,10 @@ function updateGameDisplay() {
     displayRoundCards();
     updateActionButtons(isTestMode ? currentTestPlayer : playerPosition);
 
-    // ROUND WINNER POPUP
     if (rs.roundWinnerInfo) {
         const popup = document.getElementById('roundResultPopup');
         const container = document.getElementById('roundWinnerCardContainer');
         const nameDiv = document.getElementById('roundWinnerName');
-        
         popup.classList.remove('hidden');
         container.innerHTML = '';
         nameDiv.textContent = `Winner: ${getName(rs.roundWinnerInfo.winnerId)}`;
@@ -521,9 +503,7 @@ function updateGameDisplay() {
         div.className = `card ${['hearts','diamonds'].includes(card.suit)?'red':'black'}`;
         div.innerHTML = `<div class="card-rank">${card.rank}</div><div class="card-suit">${SUITS[card.suit]}</div>`;
         container.appendChild(div);
-    } else {
-        document.getElementById('roundResultPopup').classList.add('hidden');
-    }
+    } else { document.getElementById('roundResultPopup').classList.add('hidden'); }
     
   } else if (gameState.gameCompleted) { document.getElementById('playCardSection').classList.add('hidden'); document.getElementById('currentTurnInfo').classList.add('hidden'); }
   
@@ -569,20 +549,26 @@ function createCardElement(card, index, playerId) {
   return div;
 }
 
+// === NEW CARD DISPLAY LOGIC (First shown -> Last shown) ===
 function displayRoundCards() {
   const container = document.getElementById('roundCards');
   const rs = gameState.roundState;
   if (!rs || Object.keys(rs.cardsPlayed).length === 0) { document.getElementById('roundCardsSection').classList.add('hidden'); return; }
   document.getElementById('roundCardsSection').classList.remove('hidden');
   container.innerHTML = '';
-  for (let i = 1; i <= TOTAL_PLAYERS; i++) {
-    if (rs.cardsPlayed[i]) {
-        const card = rs.cardsPlayed[i];
+  
+  // Iterate starting from the Start Player of the Round
+  // This ensures order is: P_Start -> P_Next -> ... -> P_Last
+  let p = rs.startPlayer;
+  for (let i = 0; i < TOTAL_PLAYERS; i++) {
+      if (rs.cardsPlayed[p]) {
+        const card = rs.cardsPlayed[p];
         const div = document.createElement('div');
         div.className = 'round-card-item';
-        div.innerHTML = `<div class="player-name">${getName(i)}</div><div class="card mini ${['hearts','diamonds'].includes(card.suit)?'red':'black'}"><div class="card-rank">${card.rank}</div><div class="card-suit">${SUITS[card.suit]}</div></div>`;
+        div.innerHTML = `<div class="player-name">${getName(p)}</div><div class="card mini ${['hearts','diamonds'].includes(card.suit)?'red':'black'}"><div class="card-rank">${card.rank}</div><div class="card-suit">${SUITS[card.suit]}</div></div>`;
         container.appendChild(div);
-    }
+      }
+      p = (p % TOTAL_PLAYERS) + 1;
   }
 }
 
@@ -607,16 +593,12 @@ window.startGame = startGame; window.startNextGame = startNextGame; window.creat
 function canPlayCard(card, playerId) {
   const rs = gameState.roundState;
   const hand = gameState.hands[playerId];
-  
-  // Rule: If just opened hidden card, MUST play Super Suit if available
   if (rs.justOpenedHidden) {
       const superSuit = gameState.superSuit;
       const hasSuper = hand.some(c => c.suit === superSuit);
       if (hasSuper) return card.suit === superSuit;
-      // If doesn't have super suit, can play anything (Standard fallback)
       return true;
   }
-
   if (!rs.baseSuit) return true;
   if (hand.some(c => c.suit === rs.baseSuit)) return card.suit === rs.baseSuit;
   return true;
@@ -636,7 +618,7 @@ function saveSelectedCard(playerId, card, cardIndex) {
   if (!rs.baseSuit) rs.baseSuit = card.suit;
   rs.cardsPlayed[playerId] = card;
   gameState.hands[playerId].splice(cardIndex, 1);
-  rs.justOpenedHidden = false; // Reset mandatory flag after play
+  rs.justOpenedHidden = false; 
   
   document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
   document.getElementById('nextBtn').disabled = true;
@@ -645,14 +627,15 @@ function saveSelectedCard(playerId, card, cardIndex) {
     rs.roundComplete = true; 
     rs.currentTurn = null; 
     
-    // DELAY LOGIC: Calculate winner, show popup, wait 5s
+    // Calculate Winner First
     const winnerId = calculateRoundWinner();
     const winnerCard = rs.cardsPlayed[winnerId];
-    rs.roundWinnerInfo = { winnerId, card: winnerCard }; // Trigger popup in updateGameDisplay
+    rs.roundWinnerInfo = { winnerId, card: winnerCard }; 
     
     updateGameDisplay();
     if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
     
+    // DELAY 5 SECONDS
     setTimeout(() => completeRound(), 5000); 
   } else {
     rs.currentTurn = (playerId % TOTAL_PLAYERS) + 1;
@@ -682,8 +665,8 @@ function openHiddenCard() {
   gameState.hiddenCardOpened = true;
   gameState.hiddenCardOpener = p;
   
-  // Set flag for mandatory play next
   gameState.roundState.justOpenedHidden = true;
+  gameState.roundState.hiddenOpenedInRound = true; // NEW FLAG for Calculation Logic
   
   const fp = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
   gameState.hands[fp].push(gameState.hiddenCard);
