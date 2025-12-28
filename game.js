@@ -279,12 +279,10 @@ function distributeCards(deck, distributor) {
 function startNextGame() {
     if (!isHost && !isTestMode) return;
     
-    // Apply the pre-calculated next distributor
     if (gameState.nextDistributor) {
         gameState.currentDistributor = gameState.nextDistributor;
         gameState.nextDistributor = null;
     } else {
-        // Fallback (shouldn't happen usually)
         rotateDistributor(); 
     }
 
@@ -302,7 +300,6 @@ function startGame() {
     return;
   }
   
-  // Set distributor if not set (first game)
   if (!gameState.currentDistributor) {
     setRandomDistributor();
   }
@@ -315,25 +312,20 @@ function startGame() {
   gameState.gameCompleted = false;
   gameState.gameWinnerTeam = null;
   
-  // Reset rounds won for new game
   gameState.team1Rounds = 0;
   gameState.team2Rounds = 0;
   
-  // Reset super suit
   gameState.superSuit = null;
   gameState.hiddenCardOpened = false;
   
-  // Hide Start Game, Show Next Game when finished
   document.getElementById('startGameBtn').classList.add('hidden');
   document.getElementById('nextGameButton').classList.add('hidden');
   document.getElementById('team1Winner').classList.add('hidden');
   document.getElementById('team2Winner').classList.add('hidden');
 
-  // Determine First Player and First Mover Team
   const firstPlayer = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
   gameState.firstMoverTeam = TEAM1_PLAYERS.includes(firstPlayer) ? 1 : 2;
   
-  // Randomly select one card to hide from first player
   if (gameState.hands[firstPlayer] && gameState.hands[firstPlayer].length > 0) {
     const hiddenIndex = Math.floor(Math.random() * gameState.hands[firstPlayer].length);
     gameState.hiddenCard = gameState.hands[firstPlayer][hiddenIndex];
@@ -375,7 +367,6 @@ function setRandomDistributor() {
 }
 
 function rotateDistributor() {
-  // Logic mostly replaced by determineNextDistributor, but kept as fallback/utils
   if (gameState.currentDistributor) {
     gameState.currentDistributor = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
   } else {
@@ -387,18 +378,12 @@ function determineNextDistributor(winningTeam, triggered32PointRule = false) {
     let next = gameState.currentDistributor;
     const distributorTeam = TEAM1_PLAYERS.includes(next) ? 1 : 2;
     
-    // Rule 5: 32 Points Reward (Skip to next-next)
-    // The prompt says "distributor ... will be changed to next player of Team... by skipping"
-    // Effectively moving 2 steps forward in the circle of 6
     if (triggered32PointRule) {
-        next = (next + 1) % TOTAL_PLAYERS + 1; // +2 total steps (0-indexed math fix)
+        next = (next + 1) % TOTAL_PLAYERS + 1; 
         log(`32 Point Rule Triggered! Distributor jumps to P${next}`);
         return next;
     }
 
-    // Rule 4: Standard Rotation
-    // If Distributing Team WINS -> Pass the deal (Next player)
-    // If Distributing Team LOSES -> Keep the deal (Same player)
     if (winningTeam === distributorTeam) {
         next = (next % TOTAL_PLAYERS) + 1;
         log(`Distributing Team (${distributorTeam}) Won. Deal passes to P${next}`);
@@ -429,11 +414,9 @@ function checkGameWinner() {
   let gameWinner = null;
   
   if (firstMover === team1) {
-    // Team 1 needs 5, Team 2 needs 4
     if (gameState.team1Rounds >= 5) gameWinner = team1;
     else if (gameState.team2Rounds >= 4) gameWinner = team2;
   } else {
-    // Team 2 needs 5, Team 1 needs 4
     if (gameState.team2Rounds >= 5) gameWinner = team2;
     else if (gameState.team1Rounds >= 4) gameWinner = team1;
   }
@@ -449,7 +432,6 @@ function checkGameWinner() {
 }
 
 function calculateGamePoints(winningTeam) {
-  // Calculate Points
   if (winningTeam === 1) {
     if (gameState.team2Points === 0) {
       gameState.team1Points += 5;
@@ -468,7 +450,6 @@ function calculateGamePoints(winningTeam) {
     }
   }
 
-  // Check 32 Point Rule
   let triggered32 = false;
   if (gameState.team1Points >= 32) {
       gameState.team1Points -= 32;
@@ -480,13 +461,11 @@ function calculateGamePoints(winningTeam) {
       showWinnerPopup();
   }
 
-  // Calculate Next Distributor based on rules
   gameState.nextDistributor = determineNextDistributor(winningTeam, triggered32);
 }
 
 function showWinnerPopup() {
-    // Show Popup
-    if (isHost || !isHost) { // Show for everyone
+    if (isHost || !isHost) { 
         const popup = document.getElementById('winnerPopup');
         const overlay = document.getElementById('winnerPopupOverlay');
         popup.classList.remove('hidden');
@@ -495,7 +474,7 @@ function showWinnerPopup() {
         setTimeout(() => {
             popup.classList.add('hidden');
             overlay.classList.add('hidden');
-        }, 5000); // 5 Seconds
+        }, 5000); 
     }
 }
 
@@ -513,19 +492,11 @@ function endGame(winningTeam) {
   }
   
   if (!isTestMode) {
-    // Determine who needs the popup message via broadcast
-    // Logic inside calculateGamePoints triggers popup locally, 
-    // but clients need points update to trigger it or we send explicit event
-    // Sending full state updates points, client side logic below will check for popup
     broadcastToAll({
       type: 'gameState',
-      state: gameState,
-      triggerPopup: (gameState.team1Points >= 32 || gameState.team2Points >= 32) // logic technically runs before reduction, but let's rely on state update
+      state: gameState
     });
     
-    // Better: Send specific event for popup if needed, but state sync is usually enough if we check transitions.
-    // Actually, calculateGamePoints modifies state. Client receives reduced points.
-    // Client needs to know 32 rule triggered.
     if (gameState.nextDistributor && (Math.abs(gameState.nextDistributor - gameState.currentDistributor) > 1)) {
          broadcastToAll({ type: 'showWinnerPopup' });
     }
@@ -552,7 +523,6 @@ function completeRound() {
 
   if (gameState.currentRound >= ROUNDS_PER_GAME) {
     log('All 8 rounds complete.');
-    // Fallback if no one hit 5/4 target (unlikely in valid play but possible if bug)
     return;
   }
   
@@ -650,13 +620,57 @@ function sendPlayerAction(action) {
 function sortHand(cards) {
     if (!cards) return [];
     return cards.sort((a, b) => {
-        // Sort by Suit First (Hearts, Spades, Diamonds, Clubs)
         const suitDiff = SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
         if (suitDiff !== 0) return suitDiff;
-        
-        // Then by Rank (High to Low)
         return CARD_RANK[b.rank] - CARD_RANK[a.rank];
     });
+}
+
+// NEW: Separated Action Button Logic from Card Rendering
+function updateActionButtons(viewingPlayer) {
+    const roundState = gameState.roundState;
+    
+    // Safety check
+    if (!gameState.gameStarted || gameState.gameCompleted) {
+        document.getElementById('playCardSection').classList.add('hidden');
+        document.getElementById('openHiddenCardSection').classList.add('hidden');
+        return;
+    }
+
+    if (roundState.currentTurn === viewingPlayer && !roundState.roundComplete) {
+      document.getElementById('playCardSection').classList.remove('hidden');
+      
+      // Check for Hidden Card Logic
+      if (canOpenHiddenCard(viewingPlayer)) {
+        const selectedCard = document.querySelector('.card.selected');
+        let showOpenBtn = true;
+        
+        if (selectedCard) {
+            const cardIndex = parseInt(selectedCard.dataset.cardIndex);
+            const playerHand = gameState.hands[viewingPlayer];
+            // Get card using original index logic
+            if (playerHand && playerHand[cardIndex]) {
+                const card = playerHand[cardIndex];
+                // If they select a card matching base suit (which shouldn't happen if canOpenHiddenCard is true, 
+                // but if logic drifts, safety check):
+                if (roundState.baseSuit && card.suit === roundState.baseSuit) {
+                    showOpenBtn = false;
+                }
+            }
+        }
+        
+        if (showOpenBtn) {
+            document.getElementById('openHiddenCardSection').classList.remove('hidden');
+        } else {
+            document.getElementById('openHiddenCardSection').classList.add('hidden');
+        }
+      } else {
+        document.getElementById('openHiddenCardSection').classList.add('hidden');
+      }
+    } else {
+      document.getElementById('playCardSection').classList.add('hidden');
+      document.getElementById('openHiddenCardSection').classList.add('hidden');
+    }
 }
 
 function updateGameDisplay() {
@@ -668,7 +682,6 @@ function updateGameDisplay() {
   const t1Target = document.getElementById('team1Target');
   const t2Target = document.getElementById('team2Target');
   
-  // Update Targets
   if (gameState.gameStarted && gameState.firstMoverTeam) {
     t1Target.classList.remove('hidden');
     t2Target.classList.remove('hidden');
@@ -689,7 +702,6 @@ function updateGameDisplay() {
     t2Target.classList.add('hidden');
   }
 
-  // Update Distributor
   if (gameState.currentDistributor) {
       let text = `Player ${gameState.currentDistributor}`;
       if (gameState.nextDistributor && gameState.gameCompleted) {
@@ -699,7 +711,6 @@ function updateGameDisplay() {
   }
   document.getElementById('currentRound').textContent = gameState.currentRound;
   
-  // Winner Indicators
   if (gameState.gameCompleted && gameState.gameWinnerTeam) {
       if (gameState.gameWinnerTeam === 1) {
           document.getElementById('team1Winner').classList.remove('hidden');
@@ -711,13 +722,11 @@ function updateGameDisplay() {
       document.getElementById('team2Winner').classList.add('hidden');
   }
 
-  // Host Controls
   if (gameState.gameCompleted && isHost) {
       document.getElementById('nextGameButton').classList.remove('hidden');
       document.getElementById('startGameBtn').classList.add('hidden');
   }
 
-  // Round State
   if (gameState.gameStarted && gameState.roundState && !gameState.gameCompleted) {
     const roundState = gameState.roundState;
     
@@ -749,53 +758,15 @@ function updateGameDisplay() {
     
     displayRoundCards();
     
-    // Play Card Interaction
+    // Update Action Buttons Visibility
     const viewingPlayer = isTestMode ? currentTestPlayer : playerPosition;
-    if (roundState.currentTurn === viewingPlayer && !roundState.roundComplete) {
-      document.getElementById('playCardSection').classList.remove('hidden');
-      
-      if (canOpenHiddenCard(viewingPlayer)) {
-        const selectedCard = document.querySelector('.card.selected');
-        // Logic: if they select a card that is NOT base suit, or haven't selected yet
-        // If they select a card of base suit, hide the button.
-        // If they select a valid card (non-base-suit), they can play it (implicit skip) OR open hidden.
-        
-        // However, prompt asked to remove explicit Skip button.
-        // So we show "Open Hidden Card". 
-        // If they click "Next" with a valid card selected, that counts as skipping.
-        
-        let showOpenBtn = true;
-        if (selectedCard) {
-            const cardIndex = parseInt(selectedCard.dataset.cardIndex);
-            const playerHand = gameState.hands[viewingPlayer];
-            if (playerHand && playerHand[cardIndex]) {
-                const card = playerHand[cardIndex];
-                // If they have base suit, they MUST play it, so hide open button
-                if (canPlayCard(card, viewingPlayer) && roundState.baseSuit && card.suit === roundState.baseSuit) {
-                    showOpenBtn = false;
-                }
-            }
-        }
-        
-        if (showOpenBtn) {
-            document.getElementById('openHiddenCardSection').classList.remove('hidden');
-        } else {
-            document.getElementById('openHiddenCardSection').classList.add('hidden');
-        }
-
-      } else {
-        document.getElementById('openHiddenCardSection').classList.add('hidden');
-      }
-    } else {
-      document.getElementById('playCardSection').classList.add('hidden');
-      document.getElementById('openHiddenCardSection').classList.add('hidden');
-    }
+    updateActionButtons(viewingPlayer);
+    
   } else if (gameState.gameCompleted) {
       document.getElementById('playCardSection').classList.add('hidden');
       document.getElementById('currentTurnInfo').classList.add('hidden');
   }
   
-  // Cards Display
   if (isTestMode) {
     if (gameState.hands[currentTestPlayer]) {
       displayPlayerCards(gameState.hands[currentTestPlayer]);
@@ -820,16 +791,12 @@ function displayPlayerCards(cards, playerId = null) {
     return;
   }
   
-  // SORT CARDS HERE
-  const sortedCards = sortHand([...cards]); // copy to avoid mutating logic state if needed
+  const sortedCards = sortHand([...cards]); 
 
   const targetPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
   
   sortedCards.forEach((card, index) => {
-    // We need to find the ORIGINAL index for gameplay logic (cardIndex passed to server)
-    // The visual index is different from logical index in gameState.hands
     const originalIndex = cards.findIndex(c => c.id === card.id);
-    
     const cardElement = createCardElement(card, originalIndex, targetPlayer);
     container.appendChild(cardElement);
   });
@@ -839,6 +806,51 @@ function displayPlayerCards(cards, playerId = null) {
   }
 }
 
+function createCardElement(card, index, playerId = null) {
+  const cardElement = document.createElement('div');
+  cardElement.className = 'card';
+  cardElement.classList.add(card.suit === 'hearts' || card.suit === 'diamonds' ? 'red' : 'black');
+  cardElement.dataset.cardIndex = index;
+  cardElement.dataset.cardId = card.id;
+  
+  cardElement.innerHTML = `
+    <div class="card-rank">${card.rank}</div>
+    <div class="card-suit">${SUITS[card.suit]}</div>
+    <div class="card-rank-bottom">${card.rank}</div>
+  `;
+  
+  const viewingPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
+  const isPlayable = canPlayCard(card, viewingPlayer);
+  const canOpen = canOpenHiddenCard(viewingPlayer);
+  
+  if (gameState.roundState && gameState.roundState.currentTurn === viewingPlayer && !gameState.roundState.roundComplete && !gameState.gameCompleted) {
+    if (isPlayable || canOpen) {
+      cardElement.classList.add('playable');
+    } else {
+      cardElement.classList.add('not-playable');
+    }
+  }
+  
+  cardElement.addEventListener('click', () => {
+    const targetPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
+    if (gameState.gameCompleted) return;
+    
+    if (gameState.roundState && gameState.roundState.currentTurn === targetPlayer && !gameState.roundState.roundComplete) {
+      if (isPlayable) {
+        document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
+        cardElement.classList.add('selected');
+        const nextBtn = document.getElementById('nextBtn');
+        if (nextBtn) nextBtn.disabled = false;
+        
+        // FIXED: Only update action buttons, do NOT re-render entire hand
+        updateActionButtons(targetPlayer);
+      }
+    }
+  });
+  return cardElement;
+}
+
+// ... (Rest of functions: calculateRoundWinner, displayHiddenCard, displayRoundCards, log remain same)
 function calculateRoundWinner() {
   const roundState = gameState.roundState;
   const baseSuit = roundState.baseSuit;
@@ -953,8 +965,7 @@ function log(message) {
   console.log(message);
 }
 
-// ==================== Test Mode Functions ====================
-
+// ... (Test Mode functions remain the same)
 function startTestMode() {
   log('Starting Test Mode - Simulating all 6 players...');
   isTestMode = true;
@@ -1018,9 +1029,7 @@ function displayAllPlayersCards() {
   container.innerHTML = '';
   for (let i = 1; i <= TOTAL_PLAYERS; i++) {
     const playerHand = gameState.hands[i] || [];
-    // Sort for display in Test Mode too
     const sortedHand = sortHand([...playerHand]); 
-    
     const isTeam1 = TEAM1_PLAYERS.includes(i);
     const playerView = document.createElement('div');
     playerView.className = `player-hand-view ${isTeam1 ? 'team1' : 'team2'}`;
@@ -1034,7 +1043,6 @@ function displayAllPlayersCards() {
       cardsContainer.innerHTML = '<p class="waiting-message">No cards</p>';
     } else {
       sortedHand.forEach((card, index) => {
-        // Original index needed for logic
         const originalIndex = playerHand.findIndex(c => c.id === card.id);
         const cardElement = createCardElement(card, originalIndex, i);
         cardsContainer.appendChild(cardElement);
@@ -1043,50 +1051,6 @@ function displayAllPlayersCards() {
     playerView.appendChild(cardsContainer);
     container.appendChild(playerView);
   }
-}
-
-function createCardElement(card, index, playerId = null) {
-  const cardElement = document.createElement('div');
-  cardElement.className = 'card';
-  cardElement.classList.add(card.suit === 'hearts' || card.suit === 'diamonds' ? 'red' : 'black');
-  cardElement.dataset.cardIndex = index;
-  cardElement.dataset.cardId = card.id;
-  
-  cardElement.innerHTML = `
-    <div class="card-rank">${card.rank}</div>
-    <div class="card-suit">${SUITS[card.suit]}</div>
-    <div class="card-rank-bottom">${card.rank}</div>
-  `;
-  
-  const viewingPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
-  const isPlayable = canPlayCard(card, viewingPlayer);
-  const canOpen = canOpenHiddenCard(viewingPlayer);
-  
-  if (gameState.roundState && gameState.roundState.currentTurn === viewingPlayer && !gameState.roundState.roundComplete && !gameState.gameCompleted) {
-    if (isPlayable || canOpen) {
-      cardElement.classList.add('playable');
-    } else {
-      cardElement.classList.add('not-playable');
-    }
-  }
-  
-  cardElement.addEventListener('click', () => {
-    const targetPlayer = playerId || (isTestMode ? currentTestPlayer : playerPosition);
-    if (gameState.gameCompleted) return;
-    
-    if (gameState.roundState && gameState.roundState.currentTurn === targetPlayer && !gameState.roundState.roundComplete) {
-      if (isPlayable) {
-        document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
-        cardElement.classList.add('selected');
-        const nextBtn = document.getElementById('nextBtn');
-        if (nextBtn) nextBtn.disabled = false;
-        
-        // Trigger UI update to check if we should hide/show Open button based on selection
-        updateGameDisplay();
-      }
-    }
-  });
-  return cardElement;
 }
 
 function canPlayCard(card, playerId) {
@@ -1177,9 +1141,6 @@ function nextPlayer() {
     return;
   }
   
-  // If canOpenHiddenCard is true, user MIGHT want to open hidden card.
-  // But if they clicked Next with a valid card selected, they are choosing to SKIP opening it (implicit skip).
-  
   saveSelectedCard(viewingPlayer, card, cardIndex);
 }
 
@@ -1187,7 +1148,7 @@ function openHiddenCard() {
     const viewingPlayer = isTestMode ? currentTestPlayer : playerPosition;
     if (gameState.gameCompleted) return;
     
-    // CONFIRMATION DIALOG (New Req)
+    // CONFIRMATION DIALOG
     if (!confirm("Are you sure you want to open the Hidden Card?")) {
         return;
     }
@@ -1200,7 +1161,6 @@ function openHiddenCard() {
     gameState.superSuit = gameState.hiddenCard.suit;
     gameState.hiddenCardOpened = true;
     
-    // Give card to first player
     const firstPlayer = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
     gameState.hands[firstPlayer].push(gameState.hiddenCard);
     
