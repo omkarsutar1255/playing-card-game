@@ -56,9 +56,16 @@ const CARD_RANK = { '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, '10'
 
 document.addEventListener('DOMContentLoaded', () => { 
   const inputs = ['hostNameInput', 'team1NameInput', 'team2NameInput'];
-  inputs.forEach(id => document.getElementById(id).addEventListener('input', checkHostInputs));
-  document.getElementById('playerNameInput').addEventListener('input', checkClientInputs);
-  log('Ready to connect.');
+  inputs.forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('input', checkHostInputs);
+  });
+  const pInput = document.getElementById('playerNameInput');
+  if(pInput) pInput.addEventListener('input', checkClientInputs);
+  
+  // Ensure button is hidden initially
+  const nextBtn = document.getElementById('nextGameButton');
+  if(nextBtn) nextBtn.classList.add('hidden');
 });
 
 function checkHostInputs() {
@@ -84,7 +91,7 @@ function playSound(type) {
   } catch (e) { console.log(e); }
 }
 
-// ==================== HOST & CLIENT CONNECTION ====================
+// ==================== CONNECTION & SETUP ====================
 
 function createHost() {
   isHost = true;
@@ -175,7 +182,7 @@ function updateLobbyUI() {
     }
 }
 
-// ==================== MESSAGING & HANDLERS ====================
+// ==================== MESSAGING ====================
 
 function handleHostMessage(data, conn) {
     try {
@@ -260,7 +267,8 @@ function handleClientMessage(data) {
             show32RewardPopup();
         }
         else if (msg.type === 'readyForNext') {
-            if (isHost) document.getElementById('nextGameButton').classList.remove('hidden');
+            // Client receives readyForNext, just waiting for host now
+            // We could show a "Waiting for Host" message here if we wanted
         }
     } catch (e) { console.log(e); }
 }
@@ -279,7 +287,7 @@ function sendPlayerAction(action) {
   }
 }
 
-// ==================== GAMEPLAY LOGIC ====================
+// ==================== GAME LOGIC ====================
 
 function startGame() {
   if (!isHost && !isTestMode) return;
@@ -298,7 +306,7 @@ function startGame() {
   document.getElementById('lobbySection').classList.add('hidden');
   document.getElementById('gameSection').classList.remove('hidden');
   document.getElementById('startGameBtn').classList.add('hidden');
-  document.getElementById('nextGameButton').classList.add('hidden');
+  document.getElementById('nextGameButton').classList.add('hidden'); // Ensure hidden at start
   document.getElementById('team1Winner').classList.add('hidden');
   document.getElementById('team2Winner').classList.add('hidden');
 
@@ -322,10 +330,15 @@ function startGame() {
 
 function startNextGame() {
   if (!isHost && !isTestMode) return;
+  
+  // Apply Distributor Logic from previous game end
   if (gameState.nextDistributor) {
       gameState.currentDistributor = gameState.nextDistributor;
       gameState.nextDistributor = null;
-  } else { rotateDistributor(); }
+  } else { 
+      rotateDistributor(); 
+  }
+  
   startGame();
 }
 
@@ -359,14 +372,16 @@ function rotateDistributor() {
 function determineNextDistributor(winningTeam, triggered32PointRule) {
     let next = gameState.currentDistributor;
     const distributorTeam = TEAM1_PLAYERS.includes(next) ? 1 : 2;
-    if (triggered32PointRule) return (next + 1) % TOTAL_PLAYERS + 1; 
-    if (winningTeam === distributorTeam) return (next % TOTAL_PLAYERS) + 1;
-    return next;
+    if (triggered32PointRule) return (next + 1) % TOTAL_PLAYERS + 1; // Skip 1 player
+    if (winningTeam === distributorTeam) return (next % TOTAL_PLAYERS) + 1; // Pass to next
+    return next; // Keep
 }
 function updateRoundsWon(winningTeam) {
   if (winningTeam === 1) gameState.team1Rounds++; else gameState.team2Rounds++;
   updateGameDisplay();
 }
+
+// WINNING LOGIC
 function checkGameWinner() {
   const firstMover = gameState.firstMoverTeam;
   let gameWinner = null;
@@ -377,12 +392,14 @@ function checkGameWinner() {
     if (gameState.team2Rounds >= 5) gameWinner = 2;
     else if (gameState.team1Rounds >= 4) gameWinner = 1;
   }
-  if (gameWinner) { endGame(gameWinner); return true; }
+  if (gameWinner) { 
+      endGame(gameWinner); 
+      return true; 
+  }
   return false; 
 }
 
 function calculateGamePoints(winningTeam) {
-  // 1. Point Calculation
   if (winningTeam === 1) {
     if (gameState.team2Points === 0) gameState.team1Points += 5;
     else { const red = Math.min(10, gameState.team2Points); gameState.team2Points -= red; gameState.team1Points += red; }
@@ -391,12 +408,10 @@ function calculateGamePoints(winningTeam) {
     else { const red = Math.min(10, gameState.team1Points); gameState.team1Points -= red; gameState.team2Points += red; }
   }
   
-  // 2. 32-Point Check
   let triggered32 = false;
   if (gameState.team1Points >= 32) { gameState.team1Points -= 32; triggered32 = true; }
   else if (gameState.team2Points >= 32) { gameState.team2Points -= 32; triggered32 = true; }
   
-  // 3. Next Distributor
   gameState.nextDistributor = determineNextDistributor(winningTeam, triggered32);
   
   return { triggered32 };
@@ -407,55 +422,52 @@ function endGame(winningTeam) {
   gameState.gameWinnerTeam = winningTeam;
   gameState.roundState.roundComplete = true; 
   
-  // 1. Calculate Points & Check Special Rules
+  // Calculate points
   const result = calculateGamePoints(winningTeam);
   
   updateGameDisplay();
   
-  // 2. Broadcast Final State to Sync Points/Rounds
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
 
-  // 3. Initiate Sequence (Host coordinates)
+  // Initiate Sequence
   initiateEndGameSequence(winningTeam, result.triggered32);
 }
 
 function initiateEndGameSequence(winningTeam, triggered32) {
     const winnerName = winningTeam === 1 ? gameState.config.team1Name : gameState.config.team2Name;
     
-    // STEP 1: Game Win Popup & Cheers
-    showGameResultPopup(winnerName); // Host Local
+    // 1. Show Game Winner
+    showGameResultPopup(winnerName);
     if (!isTestMode) broadcastToAll({ type: 'showGameResult', teamName: winnerName });
     
-    // Wait 5 Seconds
+    // Wait 5 seconds
     setTimeout(() => {
-        // Hide Win Popup
         const overlay = document.getElementById('popupOverlay');
         const winPop = document.getElementById('gameResultPopup');
         winPop.classList.add('hidden');
         overlay.classList.add('hidden');
         
         if (triggered32) {
-            // STEP 2: 32 Reward Popup & Winner Sound
-            show32RewardPopup(); // Host Local
+            // 2. Show 32 Reward if triggered
+            show32RewardPopup();
             if (!isTestMode) broadcastToAll({ type: 'show32Reward' });
             
-            // Wait another 5 Seconds for 32 popup
             setTimeout(() => {
-                const wPop = document.getElementById('winnerPopup');
-                wPop.classList.add('hidden');
+                document.getElementById('winnerPopup').classList.add('hidden');
                 overlay.classList.add('hidden');
-                
-                // STEP 3: Next Game Button
-                if (isHost) document.getElementById('nextGameButton').classList.remove('hidden');
-                if (!isTestMode) broadcastToAll({ type: 'readyForNext' });
-                
+                enableNextGame();
             }, 5000);
         } else {
-            // No 32 Rule, go straight to Next Game
-            if (isHost) document.getElementById('nextGameButton').classList.remove('hidden');
-            if (!isTestMode) broadcastToAll({ type: 'readyForNext' });
+            enableNextGame();
         }
     }, 5000);
+}
+
+function enableNextGame() {
+    if (isHost || isTestMode) {
+        document.getElementById('nextGameButton').classList.remove('hidden');
+        document.getElementById('startGameBtn').classList.add('hidden');
+    }
 }
 
 function showGameResultPopup(teamName) {
@@ -515,6 +527,7 @@ function completeRound() {
   const winner = calculateRoundWinner();
   const winnerTeam = TEAM1_PLAYERS.includes(winner) ? 1 : 2;
   updateRoundsWon(winnerTeam);
+  
   gameState.roundState.cardsPlayed = {};
   gameState.roundState.baseSuit = null;
   gameState.roundState.roundComplete = false;
@@ -522,11 +535,27 @@ function completeRound() {
   gameState.roundState.justOpenedHidden = false;
   gameState.roundState.hiddenOpenedInRound = false; 
   document.getElementById('roundResultPopup').classList.add('hidden');
+  
   if (checkGameWinner()) return;
-  if (gameState.currentRound >= ROUNDS_PER_GAME) return;
+  
+  // FORCE END IF ROUND 8 COMPLETE (Fallback)
+  if (gameState.currentRound >= ROUNDS_PER_GAME) {
+      // Tie breaker or logic if no one hit 5/4 target by round 8?
+      // Since 8 rounds total, and teams need 5 or 4...
+      // Attacker needs 5. Defender needs 4.
+      // If Round 8 ends and Attacker has < 5, Defender MUST have >= 4.
+      // So checkGameWinner() should have caught it.
+      // But just in case, we call checkGameWinner again or force end.
+      // We will force end favouring Defender if Attacker failed target.
+      if (gameState.firstMoverTeam === 1) endGame(2); 
+      else endGame(1);
+      return;
+  }
+  
   gameState.currentRound++;
   gameState.roundState.startPlayer = winner;
   gameState.roundState.currentTurn = winner;
+  
   if (isTestMode) switchTestPlayer(winner);
   updateGameDisplay();
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
@@ -639,7 +668,7 @@ function updateActionButtons(viewingPlayer) {
     }
     if (rs.currentTurn === viewingPlayer && !rs.roundComplete) {
       document.getElementById('playCardSection').classList.remove('hidden');
-      document.getElementById('nextBtn').textContent = "Play Selected"; // Reset text
+      document.getElementById('nextBtn').textContent = "Play Selected"; 
       
       if (canOpenHiddenCard(viewingPlayer)) {
         const selectedCard = document.querySelector('.card.selected');
@@ -692,7 +721,10 @@ function updateGameDisplay() {
       else document.getElementById('team2Winner').classList.remove('hidden');
   } else { document.getElementById('team1Winner').classList.add('hidden'); document.getElementById('team2Winner').classList.add('hidden'); }
 
-  if (gameState.gameCompleted && isHost) { document.getElementById('nextGameButton').classList.remove('hidden'); }
+  // Host button handled by sequence, but ensure not hidden by UI update if active
+  if (gameState.gameCompleted && isHost) { 
+      // Do nothing, let sequence manage visibility to avoid premature showing
+  }
 
   if (gameState.gameStarted && gameState.roundState && !gameState.gameCompleted) {
     const rs = gameState.roundState;
@@ -727,6 +759,7 @@ function updateGameDisplay() {
   if (gameState.gameStarted) document.getElementById('gameSection').classList.remove('hidden');
 }
 
+// ... (Rest of display functions: displayPlayerCards, createCardElement, displayRoundCards, displayHiddenCard, log, test mode, exports remain same)
 function displayPlayerCards(cards) {
   const container = document.getElementById('playerCards'); container.innerHTML = '';
   if (!cards || cards.length === 0) { container.innerHTML = `<p class="waiting-message">${gameState.gameCompleted ? "Game Over" : "No cards"}</p>`; return; }
