@@ -56,16 +56,11 @@ const CARD_RANK = { '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, '10'
 
 document.addEventListener('DOMContentLoaded', () => { 
   const inputs = ['hostNameInput', 'team1NameInput', 'team2NameInput'];
-  inputs.forEach(id => {
-      const el = document.getElementById(id);
-      if(el) el.addEventListener('input', checkHostInputs);
-  });
-  const pInput = document.getElementById('playerNameInput');
-  if(pInput) pInput.addEventListener('input', checkClientInputs);
+  inputs.forEach(id => document.getElementById(id).addEventListener('input', checkHostInputs));
+  document.getElementById('playerNameInput').addEventListener('input', checkClientInputs);
   
-  // Ensure button is hidden initially
-  const nextBtn = document.getElementById('nextGameButton');
-  if(nextBtn) nextBtn.classList.add('hidden');
+  // Ensure Next Game button is hidden on load
+  if(document.getElementById('nextGameButton')) document.getElementById('nextGameButton').classList.add('hidden');
 });
 
 function checkHostInputs() {
@@ -91,7 +86,7 @@ function playSound(type) {
   } catch (e) { console.log(e); }
 }
 
-// ==================== CONNECTION & SETUP ====================
+// ==================== HOST & CLIENT CONNECTION ====================
 
 function createHost() {
   isHost = true;
@@ -182,7 +177,7 @@ function updateLobbyUI() {
     }
 }
 
-// ==================== MESSAGING ====================
+// ==================== MESSAGING & HANDLERS ====================
 
 function handleHostMessage(data, conn) {
     try {
@@ -267,8 +262,7 @@ function handleClientMessage(data) {
             show32RewardPopup();
         }
         else if (msg.type === 'readyForNext') {
-            // Client receives readyForNext, just waiting for host now
-            // We could show a "Waiting for Host" message here if we wanted
+            // Clients just wait for host to restart
         }
     } catch (e) { console.log(e); }
 }
@@ -306,7 +300,7 @@ function startGame() {
   document.getElementById('lobbySection').classList.add('hidden');
   document.getElementById('gameSection').classList.remove('hidden');
   document.getElementById('startGameBtn').classList.add('hidden');
-  document.getElementById('nextGameButton').classList.add('hidden'); // Ensure hidden at start
+  document.getElementById('nextGameButton').classList.add('hidden'); 
   document.getElementById('team1Winner').classList.add('hidden');
   document.getElementById('team2Winner').classList.add('hidden');
 
@@ -468,6 +462,7 @@ function enableNextGame() {
         document.getElementById('nextGameButton').classList.remove('hidden');
         document.getElementById('startGameBtn').classList.add('hidden');
     }
+    if (!isTestMode) broadcastToAll({ type: 'readyForNext' });
 }
 
 function showGameResultPopup(teamName) {
@@ -538,15 +533,7 @@ function completeRound() {
   
   if (checkGameWinner()) return;
   
-  // FORCE END IF ROUND 8 COMPLETE (Fallback)
   if (gameState.currentRound >= ROUNDS_PER_GAME) {
-      // Tie breaker or logic if no one hit 5/4 target by round 8?
-      // Since 8 rounds total, and teams need 5 or 4...
-      // Attacker needs 5. Defender needs 4.
-      // If Round 8 ends and Attacker has < 5, Defender MUST have >= 4.
-      // So checkGameWinner() should have caught it.
-      // But just in case, we call checkGameWinner again or force end.
-      // We will force end favouring Defender if Attacker failed target.
       if (gameState.firstMoverTeam === 1) endGame(2); 
       else endGame(1);
       return;
@@ -626,6 +613,8 @@ function nextPlayer() {
   
   saveSelectedCard(p, card, idx);
 }
+
+// === NEW OPEN HIDDEN CARD LOGIC ===
 
 function requestOpenHiddenCard() {
   const p = isTestMode ? currentTestPlayer : playerPosition;
@@ -721,11 +710,8 @@ function updateGameDisplay() {
       else document.getElementById('team2Winner').classList.remove('hidden');
   } else { document.getElementById('team1Winner').classList.add('hidden'); document.getElementById('team2Winner').classList.add('hidden'); }
 
-  // Host button handled by sequence, but ensure not hidden by UI update if active
-  if (gameState.gameCompleted && isHost) { 
-      // Do nothing, let sequence manage visibility to avoid premature showing
-  }
-
+  // Host button handled by sequence
+  
   if (gameState.gameStarted && gameState.roundState && !gameState.gameCompleted) {
     const rs = gameState.roundState;
     if (rs.currentTurn) { document.getElementById('currentTurnInfo').classList.remove('hidden'); document.getElementById('currentTurn').textContent = getName(rs.currentTurn); }
@@ -759,7 +745,6 @@ function updateGameDisplay() {
   if (gameState.gameStarted) document.getElementById('gameSection').classList.remove('hidden');
 }
 
-// ... (Rest of display functions: displayPlayerCards, createCardElement, displayRoundCards, displayHiddenCard, log, test mode, exports remain same)
 function displayPlayerCards(cards) {
   const container = document.getElementById('playerCards'); container.innerHTML = '';
   if (!cards || cards.length === 0) { container.innerHTML = `<p class="waiting-message">${gameState.gameCompleted ? "Game Over" : "No cards"}</p>`; return; }
