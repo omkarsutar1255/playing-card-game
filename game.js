@@ -17,11 +17,7 @@ let connections = [];
 let mySelectedTeam = null;
 
 let gameState = {
-  config: {
-    team1Name: "Team 1",
-    team2Name: "Team 2",
-    playerNames: {} 
-  },
+  config: { team1Name: "Team 1", team2Name: "Team 2", playerNames: {} },
   lobby: { team1Slots: [], team2Slots: [] },
   deck: [],
   hands: {}, 
@@ -179,7 +175,7 @@ function updateLobbyUI() {
     }
 }
 
-// ==================== MESSAGING & HANDLERS ====================
+// ==================== MESSAGING ====================
 
 function handleHostMessage(data, conn) {
     try {
@@ -269,10 +265,18 @@ function removeConnection(conn) {
     if (index !== -1) connections.splice(index, 1);
 }
 
-// ==================== GAME LOGIC ====================
+function sendPlayerAction(action) {
+  if (isHost) return;
+  if (hostConnection && hostConnection.open) {
+    hostConnection.send(JSON.stringify({ type: 'playerAction', action: action, playerId: playerPosition }));
+  }
+}
+
+// ==================== GAMEPLAY LOGIC ====================
 
 function startGame() {
   if (!isHost && !isTestMode) return;
+  
   if (!gameState.currentDistributor) setRandomDistributor();
   playSound('distribute');
   gameState.deck = createDeck();
@@ -465,7 +469,6 @@ function completeRound() {
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
 }
 
-// Logic Validations
 function canPlayCard(card, playerId) {
   const rs = gameState.roundState;
   const hand = gameState.hands[playerId];
@@ -489,20 +492,25 @@ function canOpenHiddenCard(playerId) {
 function saveSelectedCard(playerId, card, cardIndex) {
   if (gameState.gameCompleted) return;
   if (!isHost && !isTestMode) { sendPlayerAction({ type: 'selectCard', card, cardIndex }); return; }
+  
   const rs = gameState.roundState;
   if (!rs.baseSuit) rs.baseSuit = card.suit;
   rs.cardsPlayed[playerId] = card;
   gameState.hands[playerId].splice(cardIndex, 1);
   rs.justOpenedHidden = false; 
+  
   document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
   document.getElementById('nextBtn').disabled = true;
+  
   if (Object.keys(rs.cardsPlayed).length === TOTAL_PLAYERS) {
     rs.roundComplete = true; rs.currentTurn = null; 
     const winnerId = calculateRoundWinner();
     const winnerCard = rs.cardsPlayed[winnerId];
     rs.roundWinnerInfo = { winnerId, card: winnerCard }; 
+    
     updateGameDisplay();
     if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
+    
     setTimeout(() => completeRound(), 5000); 
   } else {
     rs.currentTurn = (playerId % TOTAL_PLAYERS) + 1;
@@ -520,6 +528,11 @@ function nextPlayer() {
   const idx = parseInt(sel.dataset.cardIndex);
   const card = gameState.hands[p][idx];
   if(!canPlayCard(card, p)) return;
+  
+  // Visual feedback immediate
+  document.getElementById('nextBtn').disabled = true;
+  document.getElementById('nextBtn').textContent = "Waiting...";
+  
   saveSelectedCard(p, card, idx);
 }
 
@@ -538,7 +551,6 @@ function openHiddenCard() {
   if(!isTestMode) broadcastToAll({type:'gameState', state: gameState});
 }
 
-// Helpers & Display
 function sortHand(cards) {
     if (!cards) return [];
     return cards.sort((a, b) => {
@@ -561,6 +573,8 @@ function updateActionButtons(viewingPlayer) {
     }
     if (rs.currentTurn === viewingPlayer && !rs.roundComplete) {
       document.getElementById('playCardSection').classList.remove('hidden');
+      document.getElementById('nextBtn').textContent = "Play Selected"; // Reset text
+      
       if (canOpenHiddenCard(viewingPlayer)) {
         const selectedCard = document.querySelector('.card.selected');
         let showOpenBtn = true;

@@ -76,7 +76,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
   cursor: pointer; transition: transform 0.2s; position: relative; user-select: none;
 }
 .card:hover { transform: translateY(-3px); }
-.card.selected { border: 2px solid #667eea; box-shadow: 0 0 8px #667eea; transform: translateY(-5px); }
+.card.selected { border: 3px solid #667eea; box-shadow: 0 0 12px #667eea; transform: translateY(-8px); z-index: 10; }
 .card.red { color: #d32f2f; }
 .card.black { color: #333; }
 .card.playable { border: 2px solid #4caf50; }
