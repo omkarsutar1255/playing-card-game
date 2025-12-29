@@ -56,10 +56,13 @@ const CARD_RANK = { '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, '10'
 
 document.addEventListener('DOMContentLoaded', () => { 
   const inputs = ['hostNameInput', 'team1NameInput', 'team2NameInput'];
-  inputs.forEach(id => document.getElementById(id).addEventListener('input', checkHostInputs));
-  document.getElementById('playerNameInput').addEventListener('input', checkClientInputs);
+  inputs.forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('input', checkHostInputs);
+  });
+  const pInput = document.getElementById('playerNameInput');
+  if(pInput) pInput.addEventListener('input', checkClientInputs);
   
-  // Ensure Next Game button is hidden on load
   if(document.getElementById('nextGameButton')) document.getElementById('nextGameButton').classList.add('hidden');
 });
 
@@ -86,7 +89,7 @@ function playSound(type) {
   } catch (e) { console.log(e); }
 }
 
-// ==================== HOST & CLIENT CONNECTION ====================
+// ==================== CONNECTION & SETUP ====================
 
 function createHost() {
   isHost = true;
@@ -259,10 +262,15 @@ function handleClientMessage(data) {
             showGameResultPopup(msg.teamName);
         }
         else if (msg.type === 'show32Reward') {
+            // Clean up previous popup
+            document.getElementById('gameResultPopup').classList.add('hidden'); 
             show32RewardPopup();
         }
         else if (msg.type === 'readyForNext') {
-            // Clients just wait for host to restart
+            // Clean up all popups
+            document.getElementById('gameResultPopup').classList.add('hidden');
+            document.getElementById('winnerPopup').classList.add('hidden');
+            document.getElementById('popupOverlay').classList.add('hidden');
         }
     } catch (e) { console.log(e); }
 }
@@ -300,7 +308,7 @@ function startGame() {
   document.getElementById('lobbySection').classList.add('hidden');
   document.getElementById('gameSection').classList.remove('hidden');
   document.getElementById('startGameBtn').classList.add('hidden');
-  document.getElementById('nextGameButton').classList.add('hidden'); 
+  document.getElementById('nextGameButton').classList.add('hidden');
   document.getElementById('team1Winner').classList.add('hidden');
   document.getElementById('team2Winner').classList.add('hidden');
 
@@ -325,7 +333,6 @@ function startGame() {
 function startNextGame() {
   if (!isHost && !isTestMode) return;
   
-  // Apply Distributor Logic from previous game end
   if (gameState.nextDistributor) {
       gameState.currentDistributor = gameState.nextDistributor;
       gameState.nextDistributor = null;
@@ -374,8 +381,6 @@ function updateRoundsWon(winningTeam) {
   if (winningTeam === 1) gameState.team1Rounds++; else gameState.team2Rounds++;
   updateGameDisplay();
 }
-
-// WINNING LOGIC
 function checkGameWinner() {
   const firstMover = gameState.firstMoverTeam;
   let gameWinner = null;
@@ -416,14 +421,12 @@ function endGame(winningTeam) {
   gameState.gameWinnerTeam = winningTeam;
   gameState.roundState.roundComplete = true; 
   
-  // Calculate points
   const result = calculateGamePoints(winningTeam);
   
   updateGameDisplay();
   
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
 
-  // Initiate Sequence
   initiateEndGameSequence(winningTeam, result.triggered32);
 }
 
@@ -526,13 +529,15 @@ function completeRound() {
   gameState.roundState.cardsPlayed = {};
   gameState.roundState.baseSuit = null;
   gameState.roundState.roundComplete = false;
-  gameState.roundState.roundWinnerInfo = null;
+  gameState.roundState.roundWinnerInfo = null; // Clear Popup Data
   gameState.roundState.justOpenedHidden = false;
   gameState.roundState.hiddenOpenedInRound = false; 
-  document.getElementById('roundResultPopup').classList.add('hidden');
+  
+  // Explicitly hide round popup logic moved to updateGameDisplay
   
   if (checkGameWinner()) return;
   
+  // Force End if Rounds exhausted
   if (gameState.currentRound >= ROUNDS_PER_GAME) {
       if (gameState.firstMoverTeam === 1) endGame(2); 
       else endGame(1);
@@ -613,8 +618,6 @@ function nextPlayer() {
   
   saveSelectedCard(p, card, idx);
 }
-
-// === NEW OPEN HIDDEN CARD LOGIC ===
 
 function requestOpenHiddenCard() {
   const p = isTestMode ? currentTestPlayer : playerPosition;
@@ -710,10 +713,10 @@ function updateGameDisplay() {
       else document.getElementById('team2Winner').classList.remove('hidden');
   } else { document.getElementById('team1Winner').classList.add('hidden'); document.getElementById('team2Winner').classList.add('hidden'); }
 
-  // Host button handled by sequence
+  // Game/Round Logic
+  const rs = gameState.roundState;
   
-  if (gameState.gameStarted && gameState.roundState && !gameState.gameCompleted) {
-    const rs = gameState.roundState;
+  if (gameState.gameStarted && rs && !gameState.gameCompleted) {
     if (rs.currentTurn) { document.getElementById('currentTurnInfo').classList.remove('hidden'); document.getElementById('currentTurn').textContent = getName(rs.currentTurn); }
     if (rs.baseSuit) { document.getElementById('baseSuitInfo').classList.remove('hidden'); document.getElementById('baseSuitInfo').textContent = `Base: ${SUITS[rs.baseSuit]}`; } else document.getElementById('baseSuitInfo').classList.add('hidden');
     if (gameState.superSuit) { document.getElementById('superSuitInfo').classList.remove('hidden'); document.getElementById('superSuitInfo').textContent = `Super: ${SUITS[gameState.superSuit]}`; } else document.getElementById('superSuitInfo').classList.add('hidden');
@@ -723,6 +726,7 @@ function updateGameDisplay() {
     displayRoundCards();
     updateActionButtons(isTestMode ? currentTestPlayer : playerPosition);
 
+    // FIXED: Show Round Result Popup only if info exists, otherwise hide
     if (rs.roundWinnerInfo) {
         const popup = document.getElementById('roundResultPopup');
         const container = document.getElementById('roundWinnerCardContainer');
@@ -735,9 +739,19 @@ function updateGameDisplay() {
         div.className = `card ${['hearts','diamonds'].includes(card.suit)?'red':'black'}`;
         div.innerHTML = `<div class="card-rank">${card.rank}</div><div class="card-suit">${SUITS[card.suit]}</div>`;
         container.appendChild(div);
-    } else { document.getElementById('roundResultPopup').classList.add('hidden'); }
+    } else { 
+        document.getElementById('roundResultPopup').classList.add('hidden'); 
+    }
     
-  } else if (gameState.gameCompleted) { document.getElementById('playCardSection').classList.add('hidden'); document.getElementById('currentTurnInfo').classList.add('hidden'); }
+  } else {
+      // Game Not Started or Game Completed
+      if (gameState.gameCompleted) {
+          document.getElementById('playCardSection').classList.add('hidden');
+          document.getElementById('currentTurnInfo').classList.add('hidden');
+          // FIXED: Explicitly hide round popup when game ends
+          document.getElementById('roundResultPopup').classList.add('hidden');
+      }
+  }
   
   const targetP = isTestMode ? currentTestPlayer : playerPosition;
   if (gameState.hands[targetP]) displayPlayerCards(gameState.hands[targetP]);
@@ -745,6 +759,7 @@ function updateGameDisplay() {
   if (gameState.gameStarted) document.getElementById('gameSection').classList.remove('hidden');
 }
 
+// ... Rest of display functions (displayPlayerCards, createCardElement, displayRoundCards, displayHiddenCard, log, test mode)
 function displayPlayerCards(cards) {
   const container = document.getElementById('playerCards'); container.innerHTML = '';
   if (!cards || cards.length === 0) { container.innerHTML = `<p class="waiting-message">${gameState.gameCompleted ? "Game Over" : "No cards"}</p>`; return; }
