@@ -258,17 +258,13 @@ function handleClientMessage(data) {
             gameState = msg.state;
             updateGameDisplay();
         } 
-        else if (msg.type === 'showGameResult') {
-            showGameResultPopup(msg.teamName);
+        else if (msg.type === 'playSound') {
+            playSound(msg.sound);
         }
         else if (msg.type === 'show32Reward') {
-            // Force close previous popup just in case
-            document.getElementById('gameResultPopup').classList.add('hidden');
             show32RewardPopup();
         }
         else if (msg.type === 'readyForNext') {
-            // Clients clean up all popups
-            document.getElementById('gameResultPopup').classList.add('hidden');
             document.getElementById('winnerPopup').classList.add('hidden');
             document.getElementById('winnerPopupOverlay').classList.add('hidden');
         }
@@ -308,9 +304,12 @@ function startGame() {
   document.getElementById('lobbySection').classList.add('hidden');
   document.getElementById('gameSection').classList.remove('hidden');
   document.getElementById('startGameBtn').classList.add('hidden');
-  document.getElementById('nextGameButton').classList.add('hidden'); // Start hidden
+  document.getElementById('nextGameButton').classList.add('hidden'); 
   document.getElementById('team1Winner').classList.add('hidden');
   document.getElementById('team2Winner').classList.add('hidden');
+  
+  // FIX: Force Host Controls visible
+  if(isHost || isTestMode) document.getElementById('hostControls').classList.remove('hidden');
 
   const firstPlayer = (gameState.currentDistributor % TOTAL_PLAYERS) + 1;
   gameState.firstMoverTeam = TEAM1_PLAYERS.includes(firstPlayer) ? 1 : 2;
@@ -333,8 +332,7 @@ function startGame() {
 function startNextGame() {
   if (!isHost && !isTestMode) return;
   
-  // Clean up host UI
-  document.getElementById('gameResultPopup').classList.add('hidden');
+  // Clean up
   document.getElementById('winnerPopup').classList.add('hidden');
   document.getElementById('winnerPopupOverlay').classList.add('hidden');
   document.getElementById('roundResultPopup').classList.add('hidden');
@@ -380,8 +378,8 @@ function determineNextDistributor(winningTeam, triggered32PointRule) {
     let next = gameState.currentDistributor;
     const distributorTeam = TEAM1_PLAYERS.includes(next) ? 1 : 2;
     if (triggered32PointRule) return (next + 1) % TOTAL_PLAYERS + 1; 
-    if (winningTeam === distributorTeam) return (next % TOTAL_PLAYERS) + 1;
-    return next;
+    if (winningTeam === distributorTeam) return (next % TOTAL_PLAYERS) + 1; 
+    return next; 
 }
 function updateRoundsWon(winningTeam) {
   if (winningTeam === 1) gameState.team1Rounds++; else gameState.team2Rounds++;
@@ -426,45 +424,40 @@ function endGame(winningTeam) {
   gameState.gameCompleted = true;
   gameState.gameWinnerTeam = winningTeam;
   gameState.roundState.roundComplete = true; 
-  
-  // Clean up round popup immediately
-  gameState.roundState.roundWinnerInfo = null;
+  gameState.roundState.roundWinnerInfo = null; // Clean round popup
   
   const result = calculateGamePoints(winningTeam);
-  updateGameDisplay();
+  
+  updateGameDisplay(); // Updates points visuals
   
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
 
-  initiateEndGameSequence(winningTeam, result.triggered32);
+  // Initiate Sequence
+  initiateEndGameSequence(result.triggered32);
 }
 
-function initiateEndGameSequence(winningTeam, triggered32) {
-    const winnerName = winningTeam === 1 ? gameState.config.team1Name : gameState.config.team2Name;
+function initiateEndGameSequence(triggered32) {
+    // 1. Play Cheers immediately (No popup)
+    playSound('cheers');
+    if (!isTestMode) broadcastToAll({ type: 'playSound', sound: 'cheers' });
     
-    // STEP 1: Game Result (5s)
-    showGameResultPopup(winnerName);
-    if (!isTestMode) broadcastToAll({ type: 'showGameResult', teamName: winnerName });
-    
+    // 2. Wait 2 seconds then check 32 rule
     setTimeout(() => {
-        const overlay = document.getElementById('winnerPopupOverlay'); // Correct ID
-        document.getElementById('gameResultPopup').classList.add('hidden');
-        
         if (triggered32) {
-            // STEP 2: 32 Reward (5s)
             show32RewardPopup();
             if (!isTestMode) broadcastToAll({ type: 'show32Reward' });
             
+            // Wait 5 seconds then show Next Game
             setTimeout(() => {
                 document.getElementById('winnerPopup').classList.add('hidden');
-                overlay.classList.add('hidden');
+                document.getElementById('winnerPopupOverlay').classList.add('hidden');
                 enableNextGame();
             }, 5000);
         } else {
-            // Finish
-            overlay.classList.add('hidden');
+            // No 32 rule, just show Next Game immediately after cheers settle
             enableNextGame();
         }
-    }, 5000);
+    }, 2000);
 }
 
 function enableNextGame() {
@@ -475,17 +468,10 @@ function enableNextGame() {
     if (!isTestMode) broadcastToAll({ type: 'readyForNext' });
 }
 
-function showGameResultPopup(teamName) {
-    playSound('cheers');
-    document.getElementById('gameResultTitle').textContent = `${teamName} Wins!`;
-    document.getElementById('gameResultPopup').classList.remove('hidden');
-    document.getElementById('winnerPopupOverlay').classList.remove('hidden'); // Correct ID
-}
-
 function show32RewardPopup() {
     playSound('winner'); 
     document.getElementById('winnerPopup').classList.remove('hidden');
-    document.getElementById('winnerPopupOverlay').classList.remove('hidden'); // Correct ID
+    document.getElementById('winnerPopupOverlay').classList.remove('hidden'); 
 }
 
 function calculateRoundWinner() {
@@ -539,6 +525,7 @@ function completeRound() {
   gameState.roundState.roundWinnerInfo = null;
   gameState.roundState.justOpenedHidden = false;
   gameState.roundState.hiddenOpenedInRound = false; 
+  document.getElementById('roundResultPopup').classList.add('hidden');
   
   if (checkGameWinner()) return;
   
@@ -718,7 +705,7 @@ function updateGameDisplay() {
   } else { document.getElementById('team1Winner').classList.add('hidden'); document.getElementById('team2Winner').classList.add('hidden'); }
 
   if (gameState.gameCompleted && isHost) { 
-      // Handled by sequence, do not force here to avoid overlap
+      // Handled by sequence
   }
 
   // --- GAME STARTED LOGIC ---
@@ -733,6 +720,7 @@ function updateGameDisplay() {
     displayRoundCards();
     updateActionButtons(isTestMode ? currentTestPlayer : playerPosition);
 
+    // ROUND RESULT POPUP
     if (rs.roundWinnerInfo) {
         const popup = document.getElementById('roundResultPopup');
         const container = document.getElementById('roundWinnerCardContainer');
@@ -745,13 +733,15 @@ function updateGameDisplay() {
         div.className = `card ${['hearts','diamonds'].includes(card.suit)?'red':'black'}`;
         div.innerHTML = `<div class="card-rank">${card.rank}</div><div class="card-suit">${SUITS[card.suit]}</div>`;
         container.appendChild(div);
-    } else { document.getElementById('roundResultPopup').classList.add('hidden'); }
+    } else { 
+        document.getElementById('roundResultPopup').classList.add('hidden'); 
+    }
     
   } else {
       // GAME COMPLETED or NOT STARTED
       document.getElementById('playCardSection').classList.add('hidden'); 
       document.getElementById('currentTurnInfo').classList.add('hidden');
-      // Force Hide Round Popup on Game End
+      // FIXED: Force hide Round Popup when game ends to avoid overlap
       document.getElementById('roundResultPopup').classList.add('hidden');
   }
   
@@ -761,7 +751,7 @@ function updateGameDisplay() {
   if (gameState.gameStarted) document.getElementById('gameSection').classList.remove('hidden');
 }
 
-// ... Rest of display functions (displayPlayerCards, createCardElement, displayRoundCards, displayHiddenCard, log, test mode)
+// ... Display Helpers ...
 function displayPlayerCards(cards) {
   const container = document.getElementById('playerCards'); container.innerHTML = '';
   if (!cards || cards.length === 0) { container.innerHTML = `<p class="waiting-message">${gameState.gameCompleted ? "Game Over" : "No cards"}</p>`; return; }
