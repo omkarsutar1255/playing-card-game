@@ -262,15 +262,15 @@ function handleClientMessage(data) {
             showGameResultPopup(msg.teamName);
         }
         else if (msg.type === 'show32Reward') {
-            // Clean up previous popup
-            document.getElementById('gameResultPopup').classList.add('hidden'); 
+            // Force close previous popup just in case
+            document.getElementById('gameResultPopup').classList.add('hidden');
             show32RewardPopup();
         }
         else if (msg.type === 'readyForNext') {
-            // Clean up all popups
+            // Clients clean up all popups
             document.getElementById('gameResultPopup').classList.add('hidden');
             document.getElementById('winnerPopup').classList.add('hidden');
-            document.getElementById('popupOverlay').classList.add('hidden');
+            document.getElementById('winnerPopupOverlay').classList.add('hidden');
         }
     } catch (e) { console.log(e); }
 }
@@ -308,7 +308,7 @@ function startGame() {
   document.getElementById('lobbySection').classList.add('hidden');
   document.getElementById('gameSection').classList.remove('hidden');
   document.getElementById('startGameBtn').classList.add('hidden');
-  document.getElementById('nextGameButton').classList.add('hidden');
+  document.getElementById('nextGameButton').classList.add('hidden'); // Start hidden
   document.getElementById('team1Winner').classList.add('hidden');
   document.getElementById('team2Winner').classList.add('hidden');
 
@@ -332,6 +332,12 @@ function startGame() {
 
 function startNextGame() {
   if (!isHost && !isTestMode) return;
+  
+  // Clean up host UI
+  document.getElementById('gameResultPopup').classList.add('hidden');
+  document.getElementById('winnerPopup').classList.add('hidden');
+  document.getElementById('winnerPopupOverlay').classList.add('hidden');
+  document.getElementById('roundResultPopup').classList.add('hidden');
   
   if (gameState.nextDistributor) {
       gameState.currentDistributor = gameState.nextDistributor;
@@ -373,9 +379,9 @@ function rotateDistributor() {
 function determineNextDistributor(winningTeam, triggered32PointRule) {
     let next = gameState.currentDistributor;
     const distributorTeam = TEAM1_PLAYERS.includes(next) ? 1 : 2;
-    if (triggered32PointRule) return (next + 1) % TOTAL_PLAYERS + 1; // Skip 1 player
-    if (winningTeam === distributorTeam) return (next % TOTAL_PLAYERS) + 1; // Pass to next
-    return next; // Keep
+    if (triggered32PointRule) return (next + 1) % TOTAL_PLAYERS + 1; 
+    if (winningTeam === distributorTeam) return (next % TOTAL_PLAYERS) + 1;
+    return next;
 }
 function updateRoundsWon(winningTeam) {
   if (winningTeam === 1) gameState.team1Rounds++; else gameState.team2Rounds++;
@@ -421,8 +427,10 @@ function endGame(winningTeam) {
   gameState.gameWinnerTeam = winningTeam;
   gameState.roundState.roundComplete = true; 
   
-  const result = calculateGamePoints(winningTeam);
+  // Clean up round popup immediately
+  gameState.roundState.roundWinnerInfo = null;
   
+  const result = calculateGamePoints(winningTeam);
   updateGameDisplay();
   
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
@@ -433,19 +441,16 @@ function endGame(winningTeam) {
 function initiateEndGameSequence(winningTeam, triggered32) {
     const winnerName = winningTeam === 1 ? gameState.config.team1Name : gameState.config.team2Name;
     
-    // 1. Show Game Winner
+    // STEP 1: Game Result (5s)
     showGameResultPopup(winnerName);
     if (!isTestMode) broadcastToAll({ type: 'showGameResult', teamName: winnerName });
     
-    // Wait 5 seconds
     setTimeout(() => {
-        const overlay = document.getElementById('popupOverlay');
-        const winPop = document.getElementById('gameResultPopup');
-        winPop.classList.add('hidden');
-        overlay.classList.add('hidden');
+        const overlay = document.getElementById('winnerPopupOverlay'); // Correct ID
+        document.getElementById('gameResultPopup').classList.add('hidden');
         
         if (triggered32) {
-            // 2. Show 32 Reward if triggered
+            // STEP 2: 32 Reward (5s)
             show32RewardPopup();
             if (!isTestMode) broadcastToAll({ type: 'show32Reward' });
             
@@ -455,6 +460,8 @@ function initiateEndGameSequence(winningTeam, triggered32) {
                 enableNextGame();
             }, 5000);
         } else {
+            // Finish
+            overlay.classList.add('hidden');
             enableNextGame();
         }
     }, 5000);
@@ -472,13 +479,13 @@ function showGameResultPopup(teamName) {
     playSound('cheers');
     document.getElementById('gameResultTitle').textContent = `${teamName} Wins!`;
     document.getElementById('gameResultPopup').classList.remove('hidden');
-    document.getElementById('popupOverlay').classList.remove('hidden');
+    document.getElementById('winnerPopupOverlay').classList.remove('hidden'); // Correct ID
 }
 
 function show32RewardPopup() {
     playSound('winner'); 
     document.getElementById('winnerPopup').classList.remove('hidden');
-    document.getElementById('popupOverlay').classList.remove('hidden');
+    document.getElementById('winnerPopupOverlay').classList.remove('hidden'); // Correct ID
 }
 
 function calculateRoundWinner() {
@@ -529,15 +536,12 @@ function completeRound() {
   gameState.roundState.cardsPlayed = {};
   gameState.roundState.baseSuit = null;
   gameState.roundState.roundComplete = false;
-  gameState.roundState.roundWinnerInfo = null; // Clear Popup Data
+  gameState.roundState.roundWinnerInfo = null;
   gameState.roundState.justOpenedHidden = false;
   gameState.roundState.hiddenOpenedInRound = false; 
   
-  // Explicitly hide round popup logic moved to updateGameDisplay
-  
   if (checkGameWinner()) return;
   
-  // Force End if Rounds exhausted
   if (gameState.currentRound >= ROUNDS_PER_GAME) {
       if (gameState.firstMoverTeam === 1) endGame(2); 
       else endGame(1);
@@ -713,10 +717,13 @@ function updateGameDisplay() {
       else document.getElementById('team2Winner').classList.remove('hidden');
   } else { document.getElementById('team1Winner').classList.add('hidden'); document.getElementById('team2Winner').classList.add('hidden'); }
 
-  // Game/Round Logic
-  const rs = gameState.roundState;
-  
-  if (gameState.gameStarted && rs && !gameState.gameCompleted) {
+  if (gameState.gameCompleted && isHost) { 
+      // Handled by sequence, do not force here to avoid overlap
+  }
+
+  // --- GAME STARTED LOGIC ---
+  if (gameState.gameStarted && gameState.roundState && !gameState.gameCompleted) {
+    const rs = gameState.roundState;
     if (rs.currentTurn) { document.getElementById('currentTurnInfo').classList.remove('hidden'); document.getElementById('currentTurn').textContent = getName(rs.currentTurn); }
     if (rs.baseSuit) { document.getElementById('baseSuitInfo').classList.remove('hidden'); document.getElementById('baseSuitInfo').textContent = `Base: ${SUITS[rs.baseSuit]}`; } else document.getElementById('baseSuitInfo').classList.add('hidden');
     if (gameState.superSuit) { document.getElementById('superSuitInfo').classList.remove('hidden'); document.getElementById('superSuitInfo').textContent = `Super: ${SUITS[gameState.superSuit]}`; } else document.getElementById('superSuitInfo').classList.add('hidden');
@@ -726,7 +733,6 @@ function updateGameDisplay() {
     displayRoundCards();
     updateActionButtons(isTestMode ? currentTestPlayer : playerPosition);
 
-    // FIXED: Show Round Result Popup only if info exists, otherwise hide
     if (rs.roundWinnerInfo) {
         const popup = document.getElementById('roundResultPopup');
         const container = document.getElementById('roundWinnerCardContainer');
@@ -739,18 +745,14 @@ function updateGameDisplay() {
         div.className = `card ${['hearts','diamonds'].includes(card.suit)?'red':'black'}`;
         div.innerHTML = `<div class="card-rank">${card.rank}</div><div class="card-suit">${SUITS[card.suit]}</div>`;
         container.appendChild(div);
-    } else { 
-        document.getElementById('roundResultPopup').classList.add('hidden'); 
-    }
+    } else { document.getElementById('roundResultPopup').classList.add('hidden'); }
     
   } else {
-      // Game Not Started or Game Completed
-      if (gameState.gameCompleted) {
-          document.getElementById('playCardSection').classList.add('hidden');
-          document.getElementById('currentTurnInfo').classList.add('hidden');
-          // FIXED: Explicitly hide round popup when game ends
-          document.getElementById('roundResultPopup').classList.add('hidden');
-      }
+      // GAME COMPLETED or NOT STARTED
+      document.getElementById('playCardSection').classList.add('hidden'); 
+      document.getElementById('currentTurnInfo').classList.add('hidden');
+      // Force Hide Round Popup on Game End
+      document.getElementById('roundResultPopup').classList.add('hidden');
   }
   
   const targetP = isTestMode ? currentTestPlayer : playerPosition;
