@@ -180,7 +180,7 @@ function updateLobbyUI() {
     }
 }
 
-// ==================== MESSAGING & HANDLERS ====================
+// ==================== MESSAGING ====================
 
 function handleHostMessage(data, conn) {
     try {
@@ -258,13 +258,14 @@ function handleClientMessage(data) {
             gameState = msg.state;
             updateGameDisplay();
         } 
-        else if (msg.type === 'playSound') {
-            playSound(msg.sound);
+        else if (msg.type === 'showGameResult') {
+            // We removed this popup for cleaner UI, but keeping message handler to avoid errors
         }
         else if (msg.type === 'show32Reward') {
             show32RewardPopup();
         }
         else if (msg.type === 'readyForNext') {
+            // Clean up popups
             document.getElementById('winnerPopup').classList.add('hidden');
             document.getElementById('winnerPopupOverlay').classList.add('hidden');
         }
@@ -332,7 +333,6 @@ function startGame() {
 function startNextGame() {
   if (!isHost && !isTestMode) return;
   
-  // Clean up
   document.getElementById('winnerPopup').classList.add('hidden');
   document.getElementById('winnerPopupOverlay').classList.add('hidden');
   document.getElementById('roundResultPopup').classList.add('hidden');
@@ -424,26 +424,25 @@ function endGame(winningTeam) {
   gameState.gameCompleted = true;
   gameState.gameWinnerTeam = winningTeam;
   gameState.roundState.roundComplete = true; 
-  gameState.roundState.roundWinnerInfo = null; // Clean round popup
+  gameState.roundState.roundWinnerInfo = null; 
   
   const result = calculateGamePoints(winningTeam);
   
-  updateGameDisplay(); // Updates points visuals
+  updateGameDisplay();
   
   if (!isTestMode) broadcastToAll({ type: 'gameState', state: gameState });
 
-  // Initiate Sequence
-  initiateEndGameSequence(result.triggered32);
+  initiateEndGameSequence(winningTeam, result.triggered32);
 }
 
-function initiateEndGameSequence(triggered32) {
-    // 1. Play Cheers immediately (No popup)
+function initiateEndGameSequence(winningTeam, triggered32) {
+    // 1. Play Cheers immediately
     playSound('cheers');
-    if (!isTestMode) broadcastToAll({ type: 'playSound', sound: 'cheers' });
+    if (!isTestMode) broadcastToAll({ type: 'playEndSound', sound: 'cheers' }); // Corrected msg type
     
-    // 2. Wait 2 seconds then check 32 rule
-    setTimeout(() => {
-        if (triggered32) {
+    // 2. If 32-Point rule triggered, wait 2 sec then show popup
+    if (triggered32) {
+        setTimeout(() => {
             show32RewardPopup();
             if (!isTestMode) broadcastToAll({ type: 'show32Reward' });
             
@@ -453,17 +452,19 @@ function initiateEndGameSequence(triggered32) {
                 document.getElementById('winnerPopupOverlay').classList.add('hidden');
                 enableNextGame();
             }, 5000);
-        } else {
-            // No 32 rule, just show Next Game immediately after cheers settle
-            enableNextGame();
-        }
-    }, 2000);
+        }, 2000);
+    } else {
+        // No popup, show Next Game immediately after sound starts
+        enableNextGame();
+    }
 }
 
 function enableNextGame() {
     if (isHost || isTestMode) {
-        document.getElementById('nextGameButton').classList.remove('hidden');
-        document.getElementById('startGameBtn').classList.add('hidden');
+        const btn = document.getElementById('nextGameButton');
+        const startBtn = document.getElementById('startGameBtn');
+        btn.classList.remove('hidden');
+        startBtn.classList.add('hidden');
     }
     if (!isTestMode) broadcastToAll({ type: 'readyForNext' });
 }
@@ -704,10 +705,6 @@ function updateGameDisplay() {
       else document.getElementById('team2Winner').classList.remove('hidden');
   } else { document.getElementById('team1Winner').classList.add('hidden'); document.getElementById('team2Winner').classList.add('hidden'); }
 
-  if (gameState.gameCompleted && isHost) { 
-      // Handled by sequence
-  }
-
   // --- GAME STARTED LOGIC ---
   if (gameState.gameStarted && gameState.roundState && !gameState.gameCompleted) {
     const rs = gameState.roundState;
@@ -741,7 +738,6 @@ function updateGameDisplay() {
       // GAME COMPLETED or NOT STARTED
       document.getElementById('playCardSection').classList.add('hidden'); 
       document.getElementById('currentTurnInfo').classList.add('hidden');
-      // FIXED: Force hide Round Popup when game ends to avoid overlap
       document.getElementById('roundResultPopup').classList.add('hidden');
   }
   
@@ -751,7 +747,7 @@ function updateGameDisplay() {
   if (gameState.gameStarted) document.getElementById('gameSection').classList.remove('hidden');
 }
 
-// ... Display Helpers ...
+// ... Rest of display functions (displayPlayerCards, createCardElement, displayRoundCards, displayHiddenCard, log, test mode)
 function displayPlayerCards(cards) {
   const container = document.getElementById('playerCards'); container.innerHTML = '';
   if (!cards || cards.length === 0) { container.innerHTML = `<p class="waiting-message">${gameState.gameCompleted ? "Game Over" : "No cards"}</p>`; return; }
